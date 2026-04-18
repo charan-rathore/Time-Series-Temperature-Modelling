@@ -205,3 +205,68 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ── ThermoSense project-specific ─────────────────────────────────────────────
+
+# API credentials and secrets (NEVER commit these)
+.env
+*.env
+.env.local
+.env.*.local
+secrets.yaml
+secrets.json
+
+# Data directories (raw API responses, processed data, features)
+data/raw/
+data/processed/
+data/features/
+
+# MLflow experiment tracking (can be very large)
+mlruns/
+mlartifacts/
+
+# Model artifacts and checkpoints
+*.pkl
+*.joblib
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.onnx
+checkpoints/
+lightning_logs/
+
+# LightGBM model files
+*.lgb
+*.txt.model
+
+# Jupyter Notebook checkpoints (already covered above, but be explicit)
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# pytest
+.pytest_cache/
+**/test_results/
+
+# Docker
+.dockerignore
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# PyTorch / CUDA cache
+*.npy
+*.npz
+
+# Parquet files in data subdirs (large processed datasets)
+data/**/*.parquet
+data/**/*.csv.gz
+
+# Logs from scheduled fetcher
+logs/
+*.log
+
+# Config overrides with real secrets
+config/local_*.yaml
+config/secrets.yaml

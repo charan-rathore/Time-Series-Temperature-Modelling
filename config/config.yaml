@@ -1,0 +1,107 @@
+# ── ThermoSense Configuration ─────────────────────────────────────────────────
+# All tunable parameters live here.
+# Secrets (API keys, etc.) live in .env — never here.
+
+location:
+  name: "Bangalore"
+  lat: 12.9716
+  lon: 77.5946
+  timezone: "Asia/Kolkata"
+
+api:
+  open_meteo_forecast_url: "https://api.open-meteo.com/v1/forecast"
+  open_meteo_archive_url: "https://archive-api.open-meteo.com/v1/archive"
+  owm_base_url: "https://api.openweathermap.org/data/2.5"
+  fetch_interval_hours: 6
+  # Hourly variables pulled from Open-Meteo (no key required)
+  hourly_variables:
+    - "temperature_2m"
+    - "relativehumidity_2m"
+    - "dewpoint_2m"
+    - "precipitation"
+    - "pressure_msl"
+    - "cloudcover"
+    - "windspeed_10m"
+    - "uv_index"
+
+data:
+  history_days: 365          # how far back to backfill on first run
+  target_hour: 21            # 9 PM snapshot to match existing dataset
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  features_dir: "data/features"
+  legacy_dir: "data/legacy"
+
+features:
+  lag_days: [1, 2, 3, 7]
+  rolling_windows: [3, 7, 14]
+  cyclic_cols:
+    - col: "day_of_year"
+      period: 365
+    - col: "month"
+      period: 12
+  monsoon_months: [6, 7, 8, 9]   # June–September
+
+models:
+  sarima:
+    seasonal: true
+    m: 7                          # weekly seasonal period
+    information_criterion: "aic"
+    stepwise: true
+    exog_cols:
+      - "humidity_pct"
+      - "pressure_hpa"
+
+  lgbm:
+    n_estimators: 500
+    learning_rate: 0.05
+    max_depth: 6
+    num_leaves: 31
+    subsample: 0.8
+    colsample_bytree: 0.8
+    early_stopping_rounds: 50
+    verbose_eval: 50
+
+  tft:
+    max_prediction_length: 3
+    max_encoder_length: 30
+    hidden_size: 64
+    attention_head_size: 4
+    dropout: 0.1
+    hidden_continuous_size: 32
+    learning_rate: 0.001
+    gradient_clip_val: 0.1
+    epochs: 50
+    batch_size: 64
+    quantiles: [0.1, 0.5, 0.9]
+    time_varying_known_reals:
+      - "month_sin"
+      - "month_cos"
+      - "day_sin"
+      - "day_cos"
+      - "humidity_pct"
+      - "pressure_hpa"
+      - "cloudcover_pct"
+      - "windspeed_kmh"
+      - "precip_mm"
+    time_varying_unknown_reals:
+      - "temp_c"
+      - "dewpoint_c"
+      - "api_bias_roll7_mean"
+
+  ensemble:
+    meta_model: "ridge"
+    alpha: 1.0
+    base_models: ["sarima", "lgbm", "tft"]
+
+evaluation:
+  test_split_days: 14
+  cv_folds: 5
+  metrics: ["mae", "rmse", "mape", "skill_score"]
+  coverage_quantile: 0.9
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+  log_level: "info"
