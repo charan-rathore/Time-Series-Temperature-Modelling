@@ -45,7 +45,7 @@ HOURLY_VARS: List[str] = [
     "pressure_msl",
     "cloudcover",
     "windspeed_10m",
-    "uv_index",
+    "shortwave_radiation",   # UV proxy — uv_index is not stored in the archive
 ]
 
 COL_RENAME: Dict[str, str] = {
@@ -56,7 +56,7 @@ COL_RENAME: Dict[str, str] = {
     "pressure_msl": "pressure_hpa",
     "cloudcover": "cloudcover_pct",
     "windspeed_10m": "windspeed_kmh",
-    "uv_index": "uv_index",
+    "shortwave_radiation": "solar_radiation_wm2",
 }
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]

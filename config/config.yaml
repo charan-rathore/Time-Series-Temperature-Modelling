@@ -14,6 +14,8 @@ api:
   owm_base_url: "https://api.openweathermap.org/data/2.5"
   fetch_interval_hours: 6
   # Hourly variables pulled from Open-Meteo (no key required)
+  # Note: uv_index is NOT available in the historical archive endpoint.
+  # shortwave_radiation (W/m²) is used as the solar radiation proxy instead.
   hourly_variables:
     - "temperature_2m"
     - "relativehumidity_2m"
@@ -22,7 +24,7 @@ api:
     - "pressure_msl"
     - "cloudcover"
     - "windspeed_10m"
-    - "uv_index"
+    - "shortwave_radiation"
 
 data:
   history_days: 365          # how far back to backfill on first run
@@ -84,6 +86,7 @@ models:
       - "cloudcover_pct"
       - "windspeed_kmh"
       - "precip_mm"
+      - "solar_radiation_wm2"
     time_varying_unknown_reals:
       - "temp_c"
       - "dewpoint_c"

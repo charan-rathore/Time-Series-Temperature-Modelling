@@ -172,15 +172,29 @@ thermosense/
 
 ## Getting Started
 
-### 1. Clone and install
+### 1. Clone and install (isolated virtual environment)
+
+All project dependencies are installed **only** inside `.venv` at the repo root — they do not replace or mix with your global Python site-packages.
 
 ```bash
 git clone https://github.com/yourusername/Time-Series-Temperature-Modelling.git
 cd Time-Series-Temperature-Modelling
 
-python -m venv .venv && source .venv/bin/activate
+# Create the venv once (Python 3.10+ recommended)
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+Every time you open a new terminal for this project, activate first:
+
+```bash
+cd Time-Series-Temperature-Modelling
+source .venv/bin/activate
+```
+
+Then run scripts with `python scripts/run_pipeline.py …`, `pytest`, `jupyter`, `uvicorn`, etc. — they will all use the venv’s interpreter.
 
 ### 2. Configure
 
