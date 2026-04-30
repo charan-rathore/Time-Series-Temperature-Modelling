@@ -8,6 +8,8 @@ Reference baseline for comparison: ARIMA(1,0,0) → RMSE ~0.87°C (37-day datase
 Target for SARIMAX with exogenous features: RMSE ~0.6–0.7°C.
 """
 
+import pickle
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -102,3 +104,21 @@ class SARIMAXModel(BaseModel):
         if not available:
             return None
         return df[available].values
+
+    def save(self, path: str) -> None:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as f:
+            pickle.dump({
+                "model": self.model,
+                "exog_cols": self.exog_cols,
+                "config": self.config,
+            }, f)
+
+    def load(self, path: str) -> None:
+        with open(path, "rb") as f:
+            state = pickle.load(f)
+        self.model = state["model"]
+        self.exog_cols = state["exog_cols"]
+        self.config = state["config"]
+        self.is_fitted = True

@@ -50,11 +50,12 @@ class LGBMForecastModel(BaseModel):
             val_df: Optional validation DataFrame for early stopping.
         """
         self.feature_cols = [c for c in train_df.columns if c not in EXCLUDE_COLS]
-        target_col = f"temp_c_lag{-self.horizon}" if self.horizon > 0 else TARGET_COL
 
-        # For each horizon, shift the target backward to create a forward-looking label
-        y_train = train_df[TARGET_COL].shift(-self.horizon).dropna()
-        X_train = train_df[self.feature_cols].iloc[: len(y_train)]
+        # Shift the target backward to create a forward-looking label for the horizon
+        shifted = train_df[TARGET_COL].shift(-self.horizon)
+        valid_mask = shifted.notna()
+        y_train = shifted[valid_mask].values
+        X_train = train_df.loc[valid_mask, self.feature_cols]
 
         params = {
             "objective": "regression",
@@ -76,8 +77,10 @@ class LGBMForecastModel(BaseModel):
         train_set = lgb.Dataset(X_train, label=y_train)
 
         if val_df is not None:
-            y_val = val_df[TARGET_COL].shift(-self.horizon).dropna()
-            X_val = val_df[self.feature_cols].iloc[: len(y_val)]
+            shifted_val = val_df[TARGET_COL].shift(-self.horizon)
+            val_mask = shifted_val.notna()
+            y_val = shifted_val[val_mask].values
+            X_val = val_df.loc[val_mask, self.feature_cols]
             val_set = lgb.Dataset(X_val, label=y_val, reference=train_set)
             self.model = lgb.train(
                 params,

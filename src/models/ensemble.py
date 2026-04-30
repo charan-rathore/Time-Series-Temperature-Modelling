@@ -34,6 +34,10 @@ class EnsembleStacker(BaseModel):
         self.meta_models: Dict[int, Ridge] = {}
         self.base_model_names: List[str] = config.get("base_models", ["sarima", "lgbm", "tft"])
 
+    def fit(self, train_df: pd.DataFrame, **kwargs) -> None:
+        """Not used — ensemble trains via fit_from_oof(). This satisfies the ABC."""
+        raise NotImplementedError("Use fit_from_oof() instead for ensemble training.")
+
     def fit_from_oof(
         self,
         oof_predictions: Dict[str, np.ndarray],
@@ -75,7 +79,8 @@ class EnsembleStacker(BaseModel):
 
         Args:
             steps: Number of forecast horizons to predict.
-            base_predictions: Dict mapping model_name → predictions array for inference.
+            base_predictions: Dict mapping model_name → scalar prediction per model.
+                Each value should be a scalar or 1-element array.
         """
         if not self.is_fitted:
             raise RuntimeError("Ensemble must be fitted before calling predict().")
@@ -86,12 +91,13 @@ class EnsembleStacker(BaseModel):
         for h in range(1, steps + 1):
             if h not in self.meta_models:
                 raise ValueError(f"No meta-model fitted for horizon {h}.")
-            X_meta = np.column_stack([
-                base_predictions[name]
-                for name in self.base_model_names
-                if name in base_predictions
-            ])
-            results.append(self.meta_models[h].predict(X_meta.reshape(1, -1))[0])
+            preds_list = []
+            for name in self.base_model_names:
+                if name in base_predictions:
+                    val = base_predictions[name]
+                    preds_list.append(float(np.atleast_1d(val)[0]))
+            X_meta = np.array(preds_list).reshape(1, -1)
+            results.append(self.meta_models[h].predict(X_meta)[0])
 
         return np.array(results)
 

@@ -237,7 +237,11 @@ def save_processed(df: pd.DataFrame, output_path: Optional[str] = None) -> Path:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path, index=False)
-    print(f"[preprocess] Saved → {path.relative_to(_PROJECT_ROOT)} ({len(df)} rows)")
+    try:
+        display_path = path.relative_to(_PROJECT_ROOT)
+    except ValueError:
+        display_path = path
+    print(f"[preprocess] Saved → {display_path} ({len(df)} rows)")
     return path
 
 

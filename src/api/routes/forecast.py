@@ -2,21 +2,25 @@
 Forecast endpoint for ThermoSense API.
 
 GET /forecast
-  Returns 1–3 day temperature predictions with uncertainty intervals.
-  Predictions come from the ensemble model (champion), with fallback to LightGBM.
+  Returns 1-3 day temperature predictions with uncertainty intervals.
 
 POST /feedback
   Accepts the actual observed temperature for a past date.
-  Appends to the local database and updates the api_bias rolling feature.
+  Appends to the local data store and updates the api_bias rolling feature.
 """
 
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import List, Optional
 
+import pandas as pd
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 router = APIRouter()
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROCESSED_PATH = _PROJECT_ROOT / "data" / "processed" / "daily_merged.parquet"
 
 
 class ForecastPoint(BaseModel):
@@ -54,14 +58,10 @@ def get_forecast(
     lon: Optional[float] = None,
 ):
     """
-    Return temperature forecasts for the next 1–3 days.
+    Return temperature forecasts for the next 1-3 days.
 
-    Uses the ensemble model (SARIMA + LightGBM + TFT) when available,
-    falling back to LightGBM for faster cold-start behaviour.
-
-    Query params:
-    - days: Number of forecast days (1–3, default 3)
-    - lat, lon: Override default location from config (optional)
+    Uses trained models (ensemble > LightGBM > SARIMA) when available,
+    falling back to climatology if no models are trained.
     """
     if days < 1 or days > 3:
         raise HTTPException(status_code=400, detail="days must be between 1 and 3")
@@ -70,25 +70,39 @@ def get_forecast(
     location_name = config["location"]["name"]
     today = date.today()
 
-    # Placeholder — replace with actual model inference once models are trained.
-    # See PLAN.md Phase 6 for full implementation.
+    manager = getattr(request.app.state, "model_manager", None)
+    if manager is not None:
+        raw_forecasts = manager.forecast(days=days)
+        model_used = raw_forecasts[0]["model_used"] if raw_forecasts else "unknown"
+    else:
+        raw_forecasts = []
+        model_used = "placeholder"
+
     forecasts = []
     for d in range(1, days + 1):
         forecast_date = (today + timedelta(days=d)).isoformat()
-        forecasts.append(
-            ForecastPoint(
+        if d - 1 < len(raw_forecasts):
+            fc = raw_forecasts[d - 1]
+            forecasts.append(ForecastPoint(
                 date=forecast_date,
-                predicted_temp_c=26.0,   # replace with model output
+                predicted_temp_c=fc["predicted_temp_c"],
+                lower_bound_c=fc["lower_bound_c"],
+                upper_bound_c=fc["upper_bound_c"],
+                horizon_days=d,
+            ))
+        else:
+            forecasts.append(ForecastPoint(
+                date=forecast_date,
+                predicted_temp_c=26.0,
                 lower_bound_c=24.5,
                 upper_bound_c=27.5,
                 horizon_days=d,
-            )
-        )
+            ))
 
     return ForecastResponse(
         location=location_name,
         generated_at=datetime.utcnow().isoformat() + "Z",
-        model_used="ensemble (placeholder)",
+        model_used=model_used,
         forecasts=forecasts,
     )
 
@@ -98,12 +112,8 @@ def post_feedback(payload: FeedbackRequest, request: Request):
     """
     Accept an actual temperature observation for a past date.
 
-    This closes the prediction loop:
-    1. Appends the observation to the processed data store.
-    2. Recomputes the api_bias rolling feature for that date.
-    3. Queues an incremental model update (online learning).
-
-    The /metrics endpoint will reflect the new observation on next call.
+    Appends the observation to the processed data store and marks it
+    as a sensor reading so the api_bias feature can be recomputed.
     """
     try:
         obs_date = date.fromisoformat(payload.date)
@@ -113,10 +123,36 @@ def post_feedback(payload: FeedbackRequest, request: Request):
     if obs_date > date.today():
         raise HTTPException(status_code=400, detail="Cannot submit feedback for a future date")
 
-    # Placeholder — replace with actual DB write + bias update logic.
-    # See PLAN.md Phase 6 for full implementation.
+    bias_updated = False
+    try:
+        if PROCESSED_PATH.exists():
+            df = pd.read_parquet(PROCESSED_PATH)
+            obs_dt = pd.Timestamp(obs_date)
+
+            if obs_dt in df["date"].values:
+                idx = df.index[df["date"] == obs_dt][0]
+                old_temp = df.at[idx, "temp_c"]
+                df.at[idx, "temp_c"] = payload.actual_temp_c
+                df.at[idx, "is_sensor_reading"] = True
+                if "temp_c_api" in df.columns and pd.notna(df.at[idx, "temp_c_api"]):
+                    df.at[idx, "api_bias"] = payload.actual_temp_c - df.at[idx, "temp_c_api"]
+                    bias_updated = True
+            else:
+                new_row = pd.DataFrame([{
+                    "date": obs_dt,
+                    "temp_c": payload.actual_temp_c,
+                    "is_sensor_reading": True,
+                    "gap_filled": False,
+                }])
+                df = pd.concat([df, new_row], ignore_index=True)
+                df = df.sort_values("date").reset_index(drop=True)
+
+            df.to_parquet(PROCESSED_PATH, index=False)
+    except Exception as e:
+        print(f"[feedback] Error persisting observation: {e}")
+
     return FeedbackResponse(
         status="accepted",
         message=f"Observation for {obs_date} recorded: {payload.actual_temp_c}°C",
-        api_bias_updated=True,
+        api_bias_updated=bias_updated,
     )

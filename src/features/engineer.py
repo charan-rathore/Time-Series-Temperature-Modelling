@@ -122,7 +122,10 @@ def build_feature_matrix(
     Returns:
         Feature-rich DataFrame ready for model training.
     """
+    LEGACY_COLS = {"app_pred_day1", "app_pred_day2", "app_pred_day3"}
+
     df = df.copy()
+    df = df.drop(columns=[c for c in LEGACY_COLS if c in df.columns])
     df = add_calendar_features(df)
     df = add_lag_features(df, col=sensor_col)
 

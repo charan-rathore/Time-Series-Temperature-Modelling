@@ -95,7 +95,7 @@ models:
   ensemble:
     meta_model: "ridge"
     alpha: 1.0
-    base_models: ["sarima", "lgbm", "tft"]
+    base_models: ["sarima", "lgbm"]
 
 evaluation:
   test_split_days: 14
