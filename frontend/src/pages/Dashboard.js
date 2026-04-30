@@ -8,9 +8,10 @@ import {
   ArrowRight,
   RefreshCw,
   AlertCircle,
+  Info,
 } from 'lucide-react';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { api } from '../api';
 
@@ -59,7 +60,7 @@ export default function Dashboard({ onNavigate }) {
   }
 
   const chartData = history?.records?.slice(-30).map(r => ({
-    date: r.date?.slice(5),
+    date: r.date,
     temp: r.actual_temp_c,
     api: r.api_temp_c,
   })) || [];
@@ -72,12 +73,17 @@ export default function Dashboard({ onNavigate }) {
         ? 'SARIMA'
         : 'None';
 
+  const formatDateRange = (range) => {
+    if (!range) return 'No data';
+    return range.replace(/(\d{4})-(\d{2})-(\d{2})/g, (_, y, m, d) => `${d}-${m}-${y}`);
+  };
+
   return (
     <>
       <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h2>Dashboard</h2>
-          <p>ThermoSense system overview — {status?.data_date_range || 'No data'}</p>
+          <p>ThermoSense system overview — {formatDateRange(status?.data_date_range)}</p>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={load}><RefreshCw /> Refresh</button>
       </div>
@@ -105,7 +111,7 @@ export default function Dashboard({ onNavigate }) {
 
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Tomorrow</span>
+            <span className="card-title">Tomorrow's Forecast</span>
             <div className="stat-icon orange"><Thermometer /></div>
           </div>
           <div className="stat-value">
@@ -115,8 +121,12 @@ export default function Dashboard({ onNavigate }) {
           </div>
           <div className="stat-label">
             {forecast?.forecasts?.[0]
-              ? `${forecast.forecasts[0].lower_bound_c}° – ${forecast.forecasts[0].upper_bound_c}°`
+              ? `${forecast.forecasts[0].lower_bound_c}° – ${forecast.forecasts[0].upper_bound_c}°C range`
               : 'No forecast available'}
+          </div>
+          <div className="info-hint">
+            <Info style={{ width: 12, height: 12 }} />
+            Predicted daily avg temperature (9 PM snapshot) for tomorrow
           </div>
         </div>
 
@@ -133,6 +143,10 @@ export default function Dashboard({ onNavigate }) {
                 : '—'}
           </div>
           <div className="stat-label">Root mean squared error</div>
+          <div className="info-hint">
+            <Info style={{ width: 12, height: 12 }} />
+            Avg prediction error vs actual observed temperature on test data
+          </div>
         </div>
       </div>
 
@@ -146,15 +160,23 @@ export default function Dashboard({ onNavigate }) {
               View details <ArrowRight style={{ width: 14 }} />
             </span>
           </div>
+          <p className="chart-description">
+            Predicted daily average temperature for the next 3 days. Each value represents the expected temperature
+            at the 9 PM local snapshot, which is used as the daily reference point.
+          </p>
           <div className="card-grid-3">
-            {forecast.forecasts.map(f => (
-              <div key={f.horizon_days} className="forecast-card card">
-                <div className="forecast-day">Day {f.horizon_days}</div>
-                <div className="forecast-date">{f.date}</div>
-                <div className="forecast-temp">{f.predicted_temp_c}°</div>
-                <div className="forecast-range">{f.lower_bound_c}° – {f.upper_bound_c}°</div>
-              </div>
-            ))}
+            {forecast.forecasts.map(f => {
+              const [y, m, d] = (f.date || '').split('-');
+              const fmtDate = d && m && y ? `${d}-${m}-${y}` : f.date;
+              return (
+                <div key={f.horizon_days} className="forecast-card card">
+                  <div className="forecast-day">Day {f.horizon_days}</div>
+                  <div className="forecast-date">{fmtDate}</div>
+                  <div className="forecast-temp">{f.predicted_temp_c}°</div>
+                  <div className="forecast-range">{f.lower_bound_c}° – {f.upper_bound_c}°C</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -165,6 +187,14 @@ export default function Dashboard({ onNavigate }) {
           <div className="card-header">
             <span className="card-title">Temperature — Last 30 Days</span>
           </div>
+          <p className="chart-description">
+            Comparison of two temperature sources over the last 30 days.{' '}
+            <strong style={{ color: '#3b82f6' }}>Sensor</strong> = locally recorded ground-truth readings
+            (from physical sensors or manual observations).{' '}
+            <strong style={{ color: '#f59e0b' }}>API</strong> = Open-Meteo grid-cell estimate for this location.
+            The API temperature is typically lower because it represents a regional grid average, which doesn't capture
+            local microclimate effects (urban heat, building proximity, etc.) that the sensor picks up.
+          </p>
           <div className="chart-container">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
@@ -179,14 +209,38 @@ export default function Dashboard({ onNavigate }) {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2d3a" />
-                <XAxis dataKey="date" stroke="#6b7280" fontSize={11} />
-                <YAxis stroke="#6b7280" fontSize={11} domain={['auto', 'auto']} />
+                <XAxis
+                  dataKey="date"
+                  stroke="#6b7280"
+                  fontSize={11}
+                  tickFormatter={v => {
+                    if (!v) return '';
+                    const parts = v.split('-');
+                    return `${parts[2]}-${parts[1]}`;
+                  }}
+                  label={{ value: 'Date (DD-MM)', position: 'insideBottom', offset: -5, fill: '#6b7280', fontSize: 11 }}
+                  height={50}
+                />
+                <YAxis
+                  stroke="#6b7280"
+                  fontSize={11}
+                  domain={['auto', 'auto']}
+                  label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft', fill: '#6b7280', fontSize: 11, dx: -5 }}
+                  width={65}
+                />
                 <Tooltip
                   contentStyle={{ background: '#1e2130', border: '1px solid #2a2d3a', borderRadius: 8 }}
                   labelStyle={{ color: '#9aa0b0' }}
+                  labelFormatter={v => {
+                    if (!v) return '';
+                    const parts = v.split('-');
+                    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                  }}
+                  formatter={(value, name) => [`${value}°C`, name]}
                 />
-                <Area type="monotone" dataKey="temp" name="Sensor °C" stroke="#3b82f6" fill="url(#tempGrad)" strokeWidth={2} dot={false} />
-                <Area type="monotone" dataKey="api" name="API °C" stroke="#f59e0b" fill="url(#apiGrad)" strokeWidth={1.5} dot={false} />
+                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                <Area type="monotone" dataKey="temp" name="Sensor (local reading) °C" stroke="#3b82f6" fill="url(#tempGrad)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="api" name="API (Open-Meteo grid) °C" stroke="#f59e0b" fill="url(#apiGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>

@@ -44,4 +44,5 @@ export const api = {
       body: JSON.stringify({ models, skip_mlflow: skipMlflow }),
     }),
   getLogs: (tail = 200) => request(`/pipeline/logs?tail=${tail}`),
+  getMlflowRuns: (limit = 20) => request(`/pipeline/mlflow?limit=${limit}`),
 };

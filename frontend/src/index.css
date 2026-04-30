@@ -605,6 +605,115 @@ tr:hover td { background: var(--bg-card-hover); }
   font-weight: 600;
 }
 
+/* ── Chart descriptions & info hints ───────────────────────────────────────── */
+
+.chart-description {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 4px;
+}
+
+.chart-description strong {
+  font-weight: 600;
+}
+
+.info-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.info-box {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.info-box strong {
+  color: var(--text-primary);
+}
+
+/* ── Metric glossary ──────────────────────────────────────────────────────── */
+
+.metric-glossary {
+  display: grid;
+  gap: 10px;
+}
+
+.metric-glossary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.metric-glossary-item:last-child {
+  border-bottom: none;
+}
+
+.metric-glossary-item strong {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.metric-glossary-item span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ── MLflow detail ────────────────────────────────────────────────────────── */
+
+.mlflow-detail-row td {
+  border-bottom: 1px solid var(--border);
+}
+
+.mlflow-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.mlflow-kv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mlflow-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 3px 0;
+  gap: 12px;
+}
+
+.mlflow-kv-key {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  min-width: 80px;
+}
+
+.mlflow-kv-val {
+  font-size: 0.78rem;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
 /* ── Responsive ────────────────────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
@@ -618,4 +727,5 @@ tr:hover td { background: var(--bg-card-hover); }
   .card-grid-2 { grid-template-columns: 1fr; }
   .steps { flex-direction: column; }
   .step { border-radius: var(--radius) !important; border: 1px solid var(--border) !important; }
+  .mlflow-detail-grid { grid-template-columns: 1fr; }
 }

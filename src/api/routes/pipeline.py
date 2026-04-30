@@ -6,6 +6,7 @@ POST /pipeline/daily      — Run the daily incremental update
 POST /pipeline/train      — Train models
 GET  /pipeline/status     — Get system status (data, models, etc.)
 GET  /pipeline/logs       — Stream recent log output
+GET  /pipeline/mlflow     — Get MLflow experiment runs
 """
 
 from __future__ import annotations
@@ -91,7 +92,7 @@ class BackfillRequest(BaseModel):
 
 class TrainRequest(BaseModel):
     models: List[str] = Field(
-        default=["sarima", "lgbm", "ensemble"],
+        default=["sarima", "lgbm", "tft", "ensemble"],
         description="Models to train",
     )
     skip_mlflow: bool = Field(default=False, description="Skip MLflow logging")
@@ -151,12 +152,12 @@ def run_training(payload: TrainRequest = TrainRequest()):
         if "train" in _job_store and _job_store["train"]["status"] == "running":
             raise HTTPException(400, "Training is already running")
 
-    allowed = {"sarima", "lgbm", "ensemble"}
+    allowed = {"sarima", "lgbm", "tft", "ensemble"}
     models = [m for m in payload.models if m in allowed]
     if not models:
         raise HTTPException(400, f"No valid models specified. Choose from: {sorted(allowed)}")
 
-    cmd = [sys.executable, "scripts/train_models.py", "--models"] + models + ["--skip-tft"]
+    cmd = [sys.executable, "scripts/train_models.py", "--models"] + models
     if payload.skip_mlflow:
         cmd.append("--no-mlflow")
 
@@ -220,3 +221,97 @@ def get_status(request: Request):
 def get_logs(tail: int = 100):
     tail = min(tail, _LOG_MAX)
     return LogsResponse(lines=_log_lines[-tail:], total=len(_log_lines))
+
+
+class MLflowRun(BaseModel):
+    run_id: str
+    run_name: Optional[str] = None
+    status: str
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    model: Optional[str] = None
+    params: Dict[str, Any] = {}
+    metrics: Dict[str, float] = {}
+    artifact_uri: Optional[str] = None
+
+
+class MLflowResponse(BaseModel):
+    available: bool
+    tracking_uri: Optional[str] = None
+    experiment_name: Optional[str] = None
+    runs: List[MLflowRun] = []
+    total_runs: int = 0
+
+
+@router.get("/mlflow", response_model=MLflowResponse, summary="MLflow experiment runs")
+def get_mlflow_runs(limit: int = 20):
+    mlruns_path = _PROJECT_ROOT / "mlruns"
+    try:
+        import mlflow
+        mlflow_available = True
+    except ImportError:
+        mlflow_available = False
+
+    if not mlflow_available or not mlruns_path.exists():
+        return MLflowResponse(available=False)
+
+    tracking_uri = str(mlruns_path)
+    try:
+        mlflow.set_tracking_uri(tracking_uri)
+        experiment = mlflow.get_experiment_by_name("thermosense")
+        if experiment is None:
+            return MLflowResponse(available=True, tracking_uri=tracking_uri)
+
+        runs_data = mlflow.search_runs(
+            experiment_ids=[experiment.experiment_id],
+            order_by=["start_time DESC"],
+            max_results=limit,
+        )
+
+        runs = []
+        for _, row in runs_data.iterrows():
+            params = {}
+            metrics = {}
+            for col in runs_data.columns:
+                if col.startswith("params."):
+                    key = col[len("params."):]
+                    val = row[col]
+                    if pd.notna(val):
+                        params[key] = val
+                elif col.startswith("metrics."):
+                    key = col[len("metrics."):]
+                    val = row[col]
+                    if pd.notna(val):
+                        try:
+                            metrics[key] = float(val)
+                        except (ValueError, TypeError):
+                            pass
+
+            start_str = None
+            if pd.notna(row.get("start_time")):
+                start_str = str(row["start_time"])
+            end_str = None
+            if pd.notna(row.get("end_time")):
+                end_str = str(row["end_time"])
+
+            runs.append(MLflowRun(
+                run_id=row["run_id"],
+                run_name=row.get("tags.mlflow.runName"),
+                status=row.get("status", "UNKNOWN"),
+                start_time=start_str,
+                end_time=end_str,
+                model=params.get("model"),
+                params=params,
+                metrics=metrics,
+                artifact_uri=row.get("artifact_uri"),
+            ))
+
+        return MLflowResponse(
+            available=True,
+            tracking_uri=tracking_uri,
+            experiment_name="thermosense",
+            runs=runs,
+            total_runs=len(runs),
+        )
+    except Exception:
+        return MLflowResponse(available=True, tracking_uri=tracking_uri)

@@ -52,7 +52,11 @@ try:
 except ImportError:
     _MLFLOW_AVAILABLE = False
 
-_TFT_AVAILABLE = False
+try:
+    from src.models.tft_model import TFTModel
+    _TFT_AVAILABLE = True
+except ImportError:
+    _TFT_AVAILABLE = False
 
 
 def load_config() -> dict:
@@ -159,6 +163,15 @@ def train_lgbm(
     return results
 
 
+def _prepare_tft_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure time_idx and location columns exist and time_idx is contiguous."""
+    out = df.copy().reset_index(drop=True)
+    out["time_idx"] = range(len(out))
+    if "location" not in out.columns:
+        out["location"] = "sensor"
+    return out
+
+
 def train_tft(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame,
@@ -177,12 +190,37 @@ def train_tft(
     tft_cfg = config["models"]["tft"]
     model = TFTModel(tft_cfg)
 
-    model.fit(train_df, val_df=val_df)
+    all_df = pd.concat([train_df, val_df, test_df], ignore_index=True)
+    all_df = _prepare_tft_data(all_df)
+
+    max_encoder = tft_cfg.get("max_encoder_length", 30)
+    max_pred = tft_cfg.get("max_prediction_length", 3)
+
+    n_train = len(train_df)
+    n_val = len(val_df)
+
+    if n_train < max_encoder + max_pred:
+        print(f"  [TFT] Not enough training data ({n_train} rows, need {max_encoder + max_pred}). Skipping.")
+        return {}
+
+    tft_train = all_df.iloc[:n_train].copy()
+    tft_val = all_df.iloc[:n_train + n_val].copy()
+
+    try:
+        model.fit(tft_train, val_df=tft_val)
+    except Exception as e:
+        print(f"  [TFT] Training failed: {e}")
+        return {}
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    model.save(str(MODELS_DIR / "tft.pkl"))
 
-    full_df = pd.concat([train_df, val_df, test_df], ignore_index=True)
-    intervals = model.predict_intervals(steps=3, future_df=full_df)
+    try:
+        tft_full = all_df.copy()
+        intervals = model.predict_intervals(steps=3, future_df=tft_full)
+    except Exception as e:
+        print(f"  [TFT] Prediction failed: {e}")
+        return {}
 
     results = {}
     for horizon in [1, 2, 3]:

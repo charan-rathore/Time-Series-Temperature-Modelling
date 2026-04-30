@@ -12,6 +12,8 @@ arXiv: 1912.09363
 Expected performance: Day-1 RMSE ~0.5°C — best among all single models.
 """
 
+import pickle
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -54,6 +56,22 @@ class TFTModel(BaseModel):
         self.trainer: Optional[pl.Trainer] = None
         self.train_dataset: Optional[TimeSeriesDataSet] = None
 
+    @staticmethod
+    def _clean_for_tft(df: pd.DataFrame) -> pd.DataFrame:
+        """Drop non-numeric columns that TimeSeriesDataSet cannot handle."""
+        drop_cols = []
+        for c in df.columns:
+            if c in ("time_idx", "location", "temp_c"):
+                continue
+            if df[c].dtype == "object" or pd.api.types.is_datetime64_any_dtype(df[c]):
+                drop_cols.append(c)
+        if drop_cols:
+            df = df.drop(columns=drop_cols)
+        for col in df.select_dtypes(include=["bool"]).columns:
+            df[col] = df[col].astype(int)
+        df = df.fillna(0)
+        return df
+
     def prepare_dataset(self, df: pd.DataFrame) -> TimeSeriesDataSet:
         """
         Construct a pytorch-forecasting TimeSeriesDataSet from the feature DataFrame.
@@ -63,6 +81,8 @@ class TFTModel(BaseModel):
         Unknown reals: variables only available up to the prediction point
                        (actual temperature, local bias rolling feature).
         """
+        df = self._clean_for_tft(df)
+
         known_reals = [c for c in self.config.get("time_varying_known_reals", [])
                        if c in df.columns]
         unknown_reals = [c for c in self.config.get("time_varying_unknown_reals", [])
@@ -98,6 +118,7 @@ class TFTModel(BaseModel):
             val_split = int(len(train_df) * 0.8)
             val_df = train_df.iloc[val_split:]
 
+        val_df = self._clean_for_tft(val_df)
         val_dataset = TimeSeriesDataSet.from_dataset(
             self.train_dataset, val_df, predict=True, stop_randomization=True
         )
@@ -155,6 +176,7 @@ class TFTModel(BaseModel):
             raise RuntimeError("Model must be fitted before calling predict_intervals().")
 
         df = future_df if future_df is not None else pd.DataFrame()
+        df = self._clean_for_tft(df)
         pred_dataset = TimeSeriesDataSet.from_dataset(
             self.train_dataset, df, predict=True, stop_randomization=True
         )
@@ -167,3 +189,45 @@ class TFTModel(BaseModel):
             "median": quantile_preds[:, :, 1].mean(axis=0).numpy(),
             "upper": quantile_preds[:, :, 2].mean(axis=0).numpy(),
         }
+
+    def save(self, path: str) -> None:
+        """Save TFT model checkpoint and dataset metadata."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        checkpoint_path = path.with_suffix(".ckpt")
+        if self.trainer is not None and self.model is not None:
+            self.trainer.save_checkpoint(str(checkpoint_path))
+        elif self.model is not None:
+            torch.save(self.model.state_dict(), str(checkpoint_path))
+
+        meta_path = path.with_suffix(".meta.pkl")
+        with open(meta_path, "wb") as f:
+            pickle.dump({
+                "config": self.config,
+                "train_dataset_params": self.train_dataset.get_parameters() if self.train_dataset else None,
+            }, f)
+
+        print(f"[TFT] Saved to {path}")
+
+    def load(self, path: str) -> None:
+        """Load TFT model from checkpoint."""
+        path = Path(path)
+        checkpoint_path = path.with_suffix(".ckpt")
+        meta_path = path.with_suffix(".meta.pkl")
+
+        if not checkpoint_path.exists():
+            raise FileNotFoundError(f"TFT checkpoint not found: {checkpoint_path}")
+
+        with open(meta_path, "rb") as f:
+            meta = pickle.load(f)
+
+        self.config = meta["config"]
+
+        if meta.get("train_dataset_params"):
+            self.train_dataset = TimeSeriesDataSet.from_parameters(meta["train_dataset_params"])
+
+        self.model = TemporalFusionTransformer.load_from_checkpoint(str(checkpoint_path))
+        self.model.eval()
+        self.is_fitted = True
+        print(f"[TFT] Loaded from {path}")

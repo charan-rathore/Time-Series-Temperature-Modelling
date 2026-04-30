@@ -88,14 +88,13 @@ models:
       - "precip_mm"
       - "solar_radiation_wm2"
     time_varying_unknown_reals:
-      - "temp_c"
       - "dewpoint_c"
       - "api_bias_roll7_mean"
 
   ensemble:
     meta_model: "ridge"
     alpha: 1.0
-    base_models: ["sarima", "lgbm"]
+    base_models: ["sarima", "lgbm", "tft"]
 
 evaluation:
   test_split_days: 14

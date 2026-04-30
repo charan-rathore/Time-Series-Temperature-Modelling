@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { CloudSun, Send, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { CloudSun, Send, RefreshCw, CheckCircle2, Info } from 'lucide-react';
 import { api } from '../api';
 
 export default function Forecast() {
@@ -71,17 +71,36 @@ export default function Forecast() {
             </span>
           </div>
 
+          {/* What do these values mean */}
+          <div className="info-box" style={{ marginTop: 12, marginBottom: 20 }}>
+            <Info style={{ width: 16, height: 16, flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <strong>What do these temperatures mean?</strong>
+              <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                Each forecast shows the <strong>predicted daily temperature</strong> for the given date. 
+                The value corresponds to a <strong>9 PM local-time snapshot</strong> — the reference point 
+                used across the system for daily temperature. It is <em>not</em> an hourly prediction or a 
+                24-hour average, but a single representative reading for that calendar day. The range 
+                below each value is a <strong>90% confidence interval</strong> — there is a 90% probability 
+                the actual temperature falls within that band.
+              </p>
+            </div>
+          </div>
+
           <div className="card-grid-3" style={{ marginTop: 16 }}>
             {forecast.forecasts.map(f => (
               <div key={f.horizon_days} className="card forecast-card">
                 <CloudSun style={{ width: 32, height: 32, color: 'var(--warning)', marginBottom: 8 }} />
                 <div className="forecast-day">Day {f.horizon_days}</div>
-                <div className="forecast-date">{f.date}</div>
+                <div className="forecast-date">{(() => { const [y, m, d] = (f.date || '').split('-'); return d && m && y ? `${d}-${m}-${y}` : f.date; })()}</div>
                 <div className="forecast-temp">{f.predicted_temp_c}°</div>
                 <div className="forecast-range">
                   {f.lower_bound_c}° – {f.upper_bound_c}°C
                 </div>
                 <div className="forecast-confidence">{f.confidence} confidence</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 6 }}>
+                  Daily temp (9 PM snapshot)
+                </div>
               </div>
             ))}
           </div>
@@ -97,6 +116,7 @@ export default function Forecast() {
         </div>
         <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 16 }}>
           Record the real temperature for a past date to improve model accuracy over time.
+          This actual reading will be used to compute prediction errors and retrain models.
         </p>
         <form onSubmit={submitFeedback}>
           <div className="form-row">

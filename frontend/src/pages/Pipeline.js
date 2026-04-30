@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Play, RefreshCw, Database, Cpu, CheckCircle2, XCircle,
-  Loader, Terminal, Download, Zap,
+  Loader, Terminal, Download, Zap, FlaskConical, Clock, Tag,
 } from 'lucide-react';
 import { api } from '../api';
 
@@ -16,6 +16,10 @@ export default function Pipeline() {
   const [trainModels, setTrainModels] = useState({ sarima: true, lgbm: true, ensemble: true });
   const [skipMlflow, setSkipMlflow] = useState(false);
 
+  const [mlflow, setMlflow] = useState(null);
+  const [mlflowLoading, setMlflowLoading] = useState(false);
+  const [mlflowExpanded, setMlflowExpanded] = useState(null);
+
   const logRef = useRef(null);
   const pollRef = useRef(null);
 
@@ -28,7 +32,18 @@ export default function Pipeline() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadStatus(); }, [loadStatus]);
+  const loadMlflow = useCallback(async () => {
+    setMlflowLoading(true);
+    try {
+      const data = await api.getMlflowRuns(20);
+      setMlflow(data);
+    } catch {
+      setMlflow({ available: false });
+    }
+    setMlflowLoading(false);
+  }, []);
+
+  useEffect(() => { loadStatus(); loadMlflow(); }, [loadStatus, loadMlflow]);
 
   useEffect(() => {
     if (logRef.current) {
@@ -49,10 +64,11 @@ export default function Pipeline() {
           clearInterval(pollRef.current);
           pollRef.current = null;
           setPolling(false);
+          loadMlflow();
         }
       } catch { /* noop */ }
     }, 2000);
-  }, []);
+  }, [loadMlflow]);
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
@@ -108,6 +124,24 @@ export default function Pipeline() {
     : status?.models_available?.length === 0 ? 1
     : 2;
 
+  const formatRunTime = (startStr, endStr) => {
+    if (!startStr) return '—';
+    try {
+      const start = new Date(startStr);
+      const dateStr = start.toLocaleDateString();
+      const timeStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (endStr) {
+        const end = new Date(endStr);
+        const durationSec = Math.round((end - start) / 1000);
+        if (durationSec < 60) return `${dateStr} ${timeStr} (${durationSec}s)`;
+        return `${dateStr} ${timeStr} (${Math.round(durationSec / 60)}m)`;
+      }
+      return `${dateStr} ${timeStr}`;
+    } catch {
+      return startStr;
+    }
+  };
+
   return (
     <>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -117,7 +151,7 @@ export default function Pipeline() {
         </div>
         <div className="btn-group">
           {polling && <span className="badge badge-warning"><span className="badge-dot" /> Live</span>}
-          <button className="btn btn-secondary btn-sm" onClick={loadStatus}><RefreshCw /> Refresh</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => { loadStatus(); loadMlflow(); }}><RefreshCw /> Refresh</button>
         </div>
       </div>
 
@@ -247,6 +281,178 @@ export default function Pipeline() {
             </p>
           )}
         </div>
+      </div>
+
+      {/* MLflow Experiment Tracking */}
+      <div className="card" style={{ marginTop: 24 }}>
+        <div className="card-header">
+          <span className="card-title">
+            <FlaskConical style={{ width: 14, marginRight: 6, verticalAlign: -2 }} />
+            MLflow Experiment Tracking
+          </span>
+          <div className="btn-group">
+            {mlflow?.available && (
+              <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>
+                <CheckCircle2 style={{ width: 10 }} /> Connected
+              </span>
+            )}
+            <button className="btn btn-secondary btn-sm" onClick={loadMlflow} disabled={mlflowLoading}>
+              <RefreshCw style={mlflowLoading ? { animation: 'spin 1s linear infinite' } : {}} />
+            </button>
+          </div>
+        </div>
+
+        {mlflowLoading && !mlflow ? (
+          <div className="loading-state" style={{ padding: 24 }}><div className="spinner" /></div>
+        ) : !mlflow?.available ? (
+          <div style={{ padding: '16px 0' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+              MLflow is not available. Install it with <code style={{ background: 'var(--bg-input)', padding: '2px 6px', borderRadius: 4 }}>pip install mlflow</code> and 
+              run training without the "Skip MLflow" checkbox to start tracking experiments.
+            </p>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              MLflow tracks model parameters, metrics, and artifacts across training runs, enabling you to 
+              compare experiments and reproduce results.
+            </p>
+          </div>
+        ) : mlflow.runs.length === 0 ? (
+          <div style={{ padding: '16px 0' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              No experiment runs found. Train models with MLflow enabled to start tracking experiments.
+            </p>
+            {mlflow.tracking_uri && (
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8 }}>
+                Tracking URI: <code style={{ background: 'var(--bg-input)', padding: '2px 6px', borderRadius: 4 }}>{mlflow.tracking_uri}</code>
+              </p>
+            )}
+          </div>
+        ) : (
+          <>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+              {mlflow.total_runs} training run{mlflow.total_runs !== 1 ? 's' : ''} tracked in 
+              experiment "<strong>{mlflow.experiment_name}</strong>". Click a row to see full details.
+            </p>
+
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Run</th>
+                    <th>Model</th>
+                    <th>Status</th>
+                    <th>Time</th>
+                    <th>Day-1 RMSE</th>
+                    <th>Day-1 MAE</th>
+                    <th>Day-2 RMSE</th>
+                    <th>Day-3 RMSE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mlflow.runs.map((run, idx) => {
+                    const isExpanded = mlflowExpanded === idx;
+                    return (
+                      <React.Fragment key={run.run_id}>
+                        <tr
+                          onClick={() => setMlflowExpanded(isExpanded ? null : idx)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td style={{ fontSize: '0.78rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Tag style={{ width: 12, height: 12, color: 'var(--text-muted)' }} />
+                              <span className="mono" style={{ fontSize: '0.72rem' }}>
+                                {run.run_name || run.run_id.slice(0, 8)}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className="badge badge-info">{run.model || run.params?.model || '—'}</span>
+                          </td>
+                          <td>
+                            <span className={`badge ${run.status === 'FINISHED' ? 'badge-success' : run.status === 'FAILED' ? 'badge-danger' : 'badge-warning'}`}>
+                              {run.status === 'FINISHED' ? 'Done' : run.status}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            <Clock style={{ width: 11, height: 11, marginRight: 4, verticalAlign: -1 }} />
+                            {formatRunTime(run.start_time, run.end_time)}
+                          </td>
+                          <td className="mono">{run.metrics?.day1_rmse?.toFixed(4) ?? '—'}</td>
+                          <td className="mono">{run.metrics?.day1_mae?.toFixed(4) ?? '—'}</td>
+                          <td className="mono">{run.metrics?.day2_rmse?.toFixed(4) ?? '—'}</td>
+                          <td className="mono">{run.metrics?.day3_rmse?.toFixed(4) ?? '—'}</td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="mlflow-detail-row">
+                            <td colSpan={8} style={{ background: 'var(--bg-secondary)', padding: 16 }}>
+                              <div className="mlflow-detail-grid">
+                                <div>
+                                  <h4 style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Parameters
+                                  </h4>
+                                  {Object.keys(run.params).length > 0 ? (
+                                    <div className="mlflow-kv-list">
+                                      {Object.entries(run.params).map(([k, v]) => (
+                                        <div key={k} className="mlflow-kv">
+                                          <span className="mlflow-kv-key">{k}</span>
+                                          <span className="mlflow-kv-val">{String(v)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>None</span>}
+                                </div>
+                                <div>
+                                  <h4 style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    All Metrics
+                                  </h4>
+                                  {Object.keys(run.metrics).length > 0 ? (
+                                    <div className="mlflow-kv-list">
+                                      {Object.entries(run.metrics)
+                                        .sort(([a], [b]) => a.localeCompare(b))
+                                        .map(([k, v]) => (
+                                          <div key={k} className="mlflow-kv">
+                                            <span className="mlflow-kv-key">{k}</span>
+                                            <span className="mlflow-kv-val">{typeof v === 'number' ? v.toFixed(4) : String(v)}</span>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  ) : <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>None</span>}
+                                </div>
+                                <div>
+                                  <h4 style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Run Info
+                                  </h4>
+                                  <div className="mlflow-kv-list">
+                                    <div className="mlflow-kv">
+                                      <span className="mlflow-kv-key">Run ID</span>
+                                      <span className="mlflow-kv-val mono" style={{ fontSize: '0.7rem' }}>{run.run_id}</span>
+                                    </div>
+                                    <div className="mlflow-kv">
+                                      <span className="mlflow-kv-key">Started</span>
+                                      <span className="mlflow-kv-val">{run.start_time ? new Date(run.start_time).toLocaleString() : '—'}</span>
+                                    </div>
+                                    <div className="mlflow-kv">
+                                      <span className="mlflow-kv-key">Finished</span>
+                                      <span className="mlflow-kv-val">{run.end_time ? new Date(run.end_time).toLocaleString() : '—'}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 12 }}>
+              For the full MLflow UI with charts and artifact browsing, run{' '}
+              <code style={{ background: 'var(--bg-input)', padding: '2px 6px', borderRadius: 4 }}>mlflow ui --port 5000 --backend-store-uri {mlflow.tracking_uri}</code>
+            </p>
+          </>
+        )}
       </div>
 
       {/* Logs */}

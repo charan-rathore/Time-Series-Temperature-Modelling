@@ -21,6 +21,12 @@ from src.models.sarima_model import SARIMAXModel
 from src.models.lgbm_model import LGBMForecastModel
 from src.models.ensemble import EnsembleStacker
 
+try:
+    from src.models.tft_model import TFTModel
+    _TFT_AVAILABLE = True
+except ImportError:
+    _TFT_AVAILABLE = False
+
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODELS_DIR = _PROJECT_ROOT / "models"
 PROCESSED_DIR = _PROJECT_ROOT / "data" / "processed"
@@ -35,6 +41,7 @@ class ModelManager:
     def __init__(self):
         self.sarima: Optional[SARIMAXModel] = None
         self.lgbm_models: Dict[int, LGBMForecastModel] = {}
+        self.tft = None
         self.ensemble: Optional[EnsembleStacker] = None
         self.is_loaded = False
         self._results: Dict = {}
@@ -59,6 +66,19 @@ class ModelManager:
                 if "lgbm" not in loaded:
                     loaded.append("lgbm")
 
+        if _TFT_AVAILABLE:
+            tft_ckpt = MODELS_DIR / "tft.ckpt"
+            tft_meta = MODELS_DIR / "tft.meta.pkl"
+            if tft_ckpt.exists() and tft_meta.exists():
+                try:
+                    tft_cfg = config.get("models", {}).get("tft", {})
+                    self.tft = TFTModel(tft_cfg)
+                    self.tft.load(str(MODELS_DIR / "tft.pkl"))
+                    loaded.append("tft")
+                except Exception as e:
+                    print(f"[ModelManager] Failed to load TFT: {e}")
+                    self.tft = None
+
         ens_path = MODELS_DIR / "ensemble.pkl"
         if ens_path.exists():
             ens_cfg = config.get("models", {}).get("ensemble", {})
@@ -78,6 +98,8 @@ class ModelManager:
         """Return the name of the best available model."""
         if self.ensemble and self.ensemble.is_fitted:
             return "ensemble"
+        if self.tft and self.tft.is_fitted:
+            return "tft"
         if self.lgbm_models:
             return "lgbm"
         if self.sarima and self.sarima.is_fitted:
@@ -121,6 +143,13 @@ class ModelManager:
                     except Exception:
                         base_preds["lgbm"] = np.array([features["temp_c"].mean()])
 
+                if self.tft and self.tft.is_fitted:
+                    try:
+                        tft_result = self.tft.predict_intervals(steps=horizon, future_df=features)
+                        base_preds["tft"] = np.array([float(tft_result["median"][horizon - 1])])
+                    except Exception:
+                        base_preds["tft"] = np.array([features["temp_c"].mean()])
+
                 if base_preds:
                     for name in self.ensemble.base_model_names:
                         if name not in base_preds:
@@ -130,6 +159,16 @@ class ModelManager:
                         pred = float(ens_pred[0])
                     except Exception:
                         pass
+
+            if pred is None and self.tft and self.tft.is_fitted:
+                try:
+                    tft_result = self.tft.predict_intervals(steps=horizon, future_df=features)
+                    pred = float(tft_result["median"][horizon - 1])
+                    lower = float(tft_result["lower"][horizon - 1])
+                    upper = float(tft_result["upper"][horizon - 1])
+                    model_name = "tft"
+                except Exception:
+                    pass
 
             if pred is None and horizon in self.lgbm_models:
                 try:
