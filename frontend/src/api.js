@@ -45,4 +45,14 @@ export const api = {
     }),
   getLogs: (tail = 200) => request(`/pipeline/logs?tail=${tail}`),
   getMlflowRuns: (limit = 20) => request(`/pipeline/mlflow?limit=${limit}`),
+
+  getLeaderboard: (windowDays = 30, horizon = 1) =>
+    request(`/leaderboard?window_days=${windowDays}&horizon=${horizon}`),
+  getLeaderboardComparison: (startDate, endDate) => {
+    const params = new URLSearchParams();
+    if (startDate) params.set('start_date', startDate);
+    if (endDate) params.set('end_date', endDate);
+    return request(`/leaderboard/comparison?${params}`);
+  },
+  getLeaderboardStatus: () => request('/leaderboard/status'),
 };

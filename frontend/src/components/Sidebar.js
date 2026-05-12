@@ -6,6 +6,7 @@ import {
   BarChart3,
   Settings2,
   BookOpen,
+  Trophy,
 } from 'lucide-react';
 
 const NAV = [
@@ -13,6 +14,7 @@ const NAV = [
   { id: 'forecast', label: 'Forecast', icon: CloudSun },
   { id: 'history', label: 'History', icon: History },
   { id: 'metrics', label: 'Metrics', icon: BarChart3 },
+  { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
   { id: 'pipeline', label: 'Pipeline', icon: Settings2 },
 ];
 

@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Forecast from './pages/Forecast';
 import History from './pages/History';
 import Metrics from './pages/Metrics';
+import Leaderboard from './pages/Leaderboard';
 import Pipeline from './pages/Pipeline';
 
 const PAGES = {
@@ -11,6 +12,7 @@ const PAGES = {
   forecast: Forecast,
   history: History,
   metrics: Metrics,
+  leaderboard: Leaderboard,
   pipeline: Pipeline,
 };
 

@@ -1,777 +1,614 @@
 # ThermoSense: Hyperlocal Temperature Intelligence Platform
-## Upgrade Plan: From Static Analysis to a Live, Comparative Forecasting System
+## Transformation Plan: From Portfolio Demo to Measurable Impact
 
 ---
 
-## 1. Project Understanding (Current State)
+## Executive Summary
 
-### What Exists
-- **Dataset**: 40 days of nightly (9–10 PM) temperature readings from a single location (June–July 2024), stored as manual CSV exports
-- **Models**: ARIMA(1,0,0) auto-selected via `pmdarima`, Prophet (installed but minimally used)
-- **Analysis**: Train/test split comparison (3-day vs 37-day training window), lag analysis (Day 1/2/3 horizon), vs. commercial weather app predictions
-- **Key Results**: RMSE 2.96°C (small dataset) → 0.87°C (large dataset), 70% improvement; Day-1 lag RMSE = 1.34°C
-- **Limitations**:
-  - Only temperature; no humidity, wind, pressure, cloud cover, or dew point
-  - Single snapshot reading per day (9–10 PM), not a true diurnal time series
-  - Static CSV files — no live data pipeline
-  - Only ARIMA compared; no deep learning or ensemble baselines
-  - No API, no deployment, no reproducible experiment tracking
-  - No seasonal modeling despite spanning monsoon transition (June→July India)
+**Current State**: A well-engineered ML pipeline with no real-world impact. Models trained on synthetic backfill data, no actual sensor, no deployed service, no users, and metrics measured against self-generated baselines.
 
-### Real Problem Being Solved
-Commercial weather apps (e.g., AccuWeather, Weather.com) rely on NWP (Numerical Weather Prediction) models trained on satellite + radar data. They are *not tuned to hyperlocal microclimates*. A rooftop sensor reading at 9 PM in a dense urban area will consistently differ from the nearest official station due to urban heat islands, local vegetation, building geometry, etc.
+**Target State**: A deployed, continuously-running system that:
+1. Collects real sensor data (ESP32 + DHT22 or Raspberry Pi)
+2. Makes daily predictions consumed by actual users
+3. Publishes live accuracy metrics comparing ThermoSense vs Google Weather / AccuWeather
+4. Demonstrates measurable improvement over commercial apps on a public leaderboard
+5. Has a clear deployment story (Raspberry Pi edge device + cloud API)
 
-**This project's upgraded goal**: Build a system that learns the *local bias* of a sensor location relative to public weather data, and use that residual correction on top of a multi-variate deep learning forecast to outperform both raw ARIMA and commercial apps — and serve predictions via a REST API.
+**Why This Matters for Resume**: The difference between "I built an ML pipeline" and "I deployed a system that beats Google Weather by 40% at predicting temperature in my specific location, measured over 90 days of live data" is the difference between a forgettable project and a memorable one.
 
 ---
 
-## 2. Target Architecture
+## Part 1: Honest Assessment of Current State
+
+### What Exists (Good Foundation)
+
+| Component | Status | Quality |
+|-----------|--------|---------|
+| Data pipeline (fetcher, preprocess) | Complete | Production-grade |
+| Feature engineering | Complete | 38 features, well-designed |
+| SARIMA(X) model | Complete | Working |
+| LightGBM models (H1/H2/H3) | Complete | Working |
+| TFT model | Complete | Needs PyTorch |
+| Ensemble stacker | Complete | Working |
+| FastAPI backend | Complete | Clean architecture |
+| React dashboard | Complete | Polished UI |
+| Tests | Complete | Good coverage |
+| MLflow integration | Complete | Working |
+
+### What's Missing (Critical Gaps)
+
+| Gap | Impact | Severity |
+|-----|--------|----------|
+| **No real sensor** | The "hyperlocal" claim is unverifiable | Critical |
+| **No live deployment** | No predictions being consumed | Critical |
+| **No real baseline comparison** | "84% improvement" is against your own ARIMA, not Google Weather | Critical |
+| **No user** | No one benefits from this system | Critical |
+| **Tiny ground truth** | 40 days of manual readings is statistically weak | High |
+| **No live accuracy tracking** | Cannot prove it works over time | High |
+| **No public leaderboard** | Results aren't verifiable by others | Medium |
+
+### Current Metrics Are Misleading
+
+The results.json shows:
+- Ensemble Day-1 RMSE: 0.221°C
+- SARIMA Day-1 RMSE: 1.036°C
+
+**Problem**: These metrics are computed on Open-Meteo API data predicting... Open-Meteo API data (with 40 days of sensor overlap). The "api_bias" feature leaks because you're training on data where you know both the sensor reading and the API value.
+
+**Real question**: Can ThermoSense predict tomorrow's *actual sensor reading* better than AccuWeather's Day-1 forecast?
+
+That question has never been answered.
+
+---
+
+## Part 2: Transformation Roadmap
+
+### Phase A: Deploy a Real Sensor (Week 1-2)
+
+**Goal**: Collect real, continuous temperature data from a physical device.
+
+#### Option 1: Raspberry Pi Zero 2 W + DHT22 (Recommended)
+
+**Hardware cost**: ~$25 total
+- Raspberry Pi Zero 2 W: $15
+- DHT22 sensor: $5
+- Breadboard + wires: $5
+
+**Why Raspberry Pi over ESP32**:
+- Can run Python directly (no firmware flashing)
+- WiFi built-in
+- Can host a local SQLite database and sync to cloud
+- Can run the ThermoSense API locally for edge inference
+
+**Implementation**:
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                        DATA INGESTION LAYER                              │
-│                                                                          │
-│  ┌─────────────────┐    ┌──────────────────┐    ┌──────────────────┐   │
-│  │  Open-Meteo API  │    │  OpenWeatherMap  │    │  Historical CSV  │   │
-│  │  (free, no key)  │    │  (free tier API) │    │  (existing data) │   │
-│  └────────┬─────────┘    └────────┬─────────┘    └────────┬─────────┘   │
-│           └──────────────────────┴──────────────────────┘              │
-│                                   │                                      │
-│                          ┌────────▼────────┐                            │
-│                          │   data_fetcher  │  (src/data/fetcher.py)     │
-│                          │  (scheduled job)│                            │
-│                          └────────┬────────┘                            │
-└───────────────────────────────────┼──────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼──────────────────────────────────────┐
-│                        STORAGE LAYER                                     │
-│                                                                          │
-│  ┌─────────────────────────────────────────────────────────┐            │
-│  │  data/raw/          data/processed/     data/features/  │            │
-│  │  (API responses)    (cleaned DFs)       (engineered)    │            │
-│  └─────────────────────────────────────────────────────────┘            │
-└───────────────────────────────────┬──────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼──────────────────────────────────────┐
-│                    FEATURE ENGINEERING LAYER                             │
-│                                                                          │
-│  • Rolling statistics (mean, std, min, max over 3/7/14 day windows)     │
-│  • Lag features (T-1, T-2, T-3, T-7)                                   │
-│  • Calendar features (hour, day_of_week, month, is_monsoon)             │
-│  • External features (humidity, pressure, wind_speed, cloud_cover,      │
-│    dew_point, UV_index from Open-Meteo)                                 │
-│  • Bias residual feature: (sensor_reading - API_prediction)             │
-│                                                                          │
-│  src/features/engineer.py                                                │
-└───────────────────────────────────┬──────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼──────────────────────────────────────┐
-│                         MODEL LAYER                                      │
-│                                                                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐  ┌───────────┐ │
-│  │ SARIMA(X)    │  │  LightGBM    │  │  Temporal     │  │ Ensemble  │ │
-│  │ (baseline)   │  │  (gradient   │  │  Fusion       │  │ Stacker   │ │
-│  │              │  │   boosting)  │  │  Transformer  │  │ (meta-ML) │ │
-│  └──────────────┘  └──────────────┘  └───────────────┘  └───────────┘ │
-│                                                                          │
-│  src/models/sarima_model.py                                              │
-│  src/models/lgbm_model.py                                                │
-│  src/models/tft_model.py                                                 │
-│  src/models/ensemble.py                                                  │
-└───────────────────────────────────┬──────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼──────────────────────────────────────┐
-│                      EXPERIMENT TRACKING (MLflow)                        │
-│                                                                          │
-│  • Per-run: MAE, RMSE, MAPE, skill score vs. climatology                │
-│  • Artifact logging: model weights, feature importance, residual plots  │
-│  • Model registry for champion/challenger versioning                     │
-│                                                                          │
-│  mlruns/   (auto-created by MLflow)                                      │
-└───────────────────────────────────┬──────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼──────────────────────────────────────┐
-│                          API LAYER (FastAPI)                             │
-│                                                                          │
-│  GET  /forecast?lat=XX&lon=YY&days=3                                    │
-│  GET  /history?start=YYYY-MM-DD&end=YYYY-MM-DD                          │
-│  GET  /metrics                                                           │
-│  POST /feedback  { date, actual_temp }  (closes the loop)               │
-│                                                                          │
-│  src/api/main.py                                                         │
-│  src/api/routes/forecast.py                                              │
-│  src/api/routes/history.py                                               │
-│  src/api/routes/metrics.py                                               │
-└───────────────────────────────────┬──────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼──────────────────────────────────────┐
-│                    NOTEBOOK / ANALYSIS LAYER                             │
-│                                                                          │
-│  notebooks/01_eda.ipynb                 (existing analysis, cleaned)    │
-│  notebooks/02_feature_engineering.ipynb                                 │
-│  notebooks/03_model_comparison.ipynb    (all models head-to-head)       │
-│  notebooks/04_error_analysis.ipynb      (residuals, confidence bands)   │
-│  notebooks/05_api_demo.ipynb            (live API calls from notebook)  │
-└──────────────────────────────────────────────────────────────────────────┘
+/hardware/
+├── sensor_daemon.py      # Reads DHT22 every 5 minutes, writes to SQLite
+├── uploader.py           # Syncs SQLite to cloud API every hour
+├── requirements.txt      # Adafruit_DHT, requests
+└── install.sh            # systemd service setup
 ```
 
+**sensor_daemon.py** pseudocode:
+```python
+import Adafruit_DHT
+import sqlite3
+from datetime import datetime
+
+DHT_SENSOR = Adafruit_DHT.DHT22
+DHT_PIN = 4  # GPIO pin
+
+def read_sensor():
+    humidity, temperature = Adafruit_DHT.read_retry(DHT_SENSOR, DHT_PIN)
+    return {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "temp_c": round(temperature, 2),
+        "humidity_pct": round(humidity, 2),
+        "source": "dht22_sensor"
+    }
+
+def store_reading(reading, db_path="readings.db"):
+    conn = sqlite3.connect(db_path)
+    conn.execute("""
+        INSERT INTO readings (timestamp, temp_c, humidity_pct, source)
+        VALUES (?, ?, ?, ?)
+    """, (reading["timestamp"], reading["temp_c"], reading["humidity_pct"], reading["source"]))
+    conn.commit()
+    conn.close()
+```
+
+**Deployment location**: Place the sensor:
+- Outdoors but sheltered (balcony, porch, under an eave)
+- Away from direct sunlight and heat sources
+- At a height of 1.5–2m (standard meteorological convention)
+- Note exact GPS coordinates for Open-Meteo comparison
+
+#### Option 2: Use a Weather Station with API (No Hardware)
+
+If you cannot deploy hardware, use a personal weather station (PWS) from Weather Underground's network:
+
+1. Go to https://www.wunderground.com/wundermap
+2. Find a PWS within 1km of your location
+3. Use the Weather Underground API to fetch that station's readings
+4. This gives you "hyperlocal" data without deploying hardware
+
+**Trade-off**: Less impressive for resume ("I used someone else's sensor") but still demonstrates the bias-correction concept.
+
 ---
 
-## 3. Tech Stack Delta (What's Being Added)
+### Phase B: Live Baseline Comparison (Week 2-3)
 
-| Category | Current | Upgraded |
-|---|---|---|
-| Data source | Manual CSV | Open-Meteo API + OpenWeatherMap API (free tiers) |
-| Feature set | Temperature only | Temperature + 8 meteorological variables |
-| Models | ARIMA(1,0,0), Prophet | SARIMA(X), LightGBM, Temporal Fusion Transformer |
-| Experiment tracking | None | MLflow |
-| Scheduling | None | APScheduler (in-process cron) |
-| API | None | FastAPI + Uvicorn |
-| Environment management | requirements.txt | `.env` + `python-dotenv` |
-| Config management | Hardcoded | `config/config.yaml` |
-| Testing | None | pytest |
-| Containerization (optional) | None | Docker + docker-compose |
+**Goal**: Collect daily predictions from commercial weather apps and compare against ThermoSense.
+
+#### Daily Automated Baseline Collection
+
+Every day at 6 PM, collect Day-1 forecasts from:
+
+1. **Google Weather** (scrape or use unofficial API)
+2. **AccuWeather** (free tier API: 50 calls/day)
+3. **Open-Meteo** (already integrated)
+4. **OpenWeatherMap** (already integrated)
+5. **ThermoSense** (your model's prediction)
+
+Store in a table:
+
+```sql
+CREATE TABLE daily_forecasts (
+    forecast_date DATE NOT NULL,
+    generated_at TIMESTAMP NOT NULL,
+    source VARCHAR(50) NOT NULL,  -- 'google', 'accuweather', 'openmeteo', 'owm', 'thermosense'
+    predicted_temp_c REAL NOT NULL,
+    horizon_days INT NOT NULL,
+    PRIMARY KEY (forecast_date, source, horizon_days)
+);
+
+CREATE TABLE daily_actuals (
+    date DATE PRIMARY KEY,
+    sensor_temp_c REAL NOT NULL,  -- 9 PM reading from your DHT22
+    recorded_at TIMESTAMP NOT NULL
+);
+```
+
+**Comparison query**:
+```sql
+SELECT 
+    f.source,
+    AVG(ABS(f.predicted_temp_c - a.sensor_temp_c)) AS mae,
+    SQRT(AVG(POWER(f.predicted_temp_c - a.sensor_temp_c, 2))) AS rmse,
+    COUNT(*) AS n_days
+FROM daily_forecasts f
+JOIN daily_actuals a ON f.forecast_date = a.date
+WHERE f.horizon_days = 1
+GROUP BY f.source
+ORDER BY rmse;
+```
+
+**This is the key deliverable**: A table showing ThermoSense vs Google vs AccuWeather over 30/60/90 days of real predictions.
 
 ---
 
-## 4. Step-by-Step Implementation Plan
+### Phase C: Public Deployment (Week 3-4)
+
+**Goal**: Make ThermoSense accessible online with a live accuracy dashboard.
+
+#### Option 1: Railway / Render (Free Tier)
+
+Deploy the FastAPI backend to Railway (free tier: 500 hours/month, which is enough for always-on):
+
+```bash
+# railway.toml
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "uvicorn src.api.main:app --host 0.0.0.0 --port ${PORT}"
+```
+
+**Public URL**: `https://thermosense.up.railway.app`
+
+#### Option 2: Raspberry Pi as Edge + Cloudflare Tunnel
+
+Run ThermoSense directly on the Pi, expose via Cloudflare Tunnel (free):
+
+```bash
+cloudflared tunnel --url http://localhost:8000
+```
+
+**Benefit**: True edge ML deployment story. The same device that collects data also runs inference.
 
 ---
 
-### Phase 0 — Repository Cleanup & Scaffolding (Day 1)
+### Phase D: Live Accuracy Leaderboard (Week 4-5)
 
-**Goal**: Create the full directory structure and install all dependencies.
+**Goal**: A public page showing real-time accuracy comparison.
+
+#### Dashboard Enhancements
+
+Add a new page: **Leaderboard** (`/leaderboard`)
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║           LIVE ACCURACY LEADERBOARD (Last 30 Days)              ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Rank  │  Source         │  Day-1 RMSE  │  Day-1 MAE  │  n_days ║
+╠════════╪═════════════════╪══════════════╪═════════════╪═════════╣
+║   🥇   │  ThermoSense    │   0.68°C     │   0.52°C    │   30    ║
+║   🥈   │  OpenWeatherMap │   1.24°C     │   0.98°C    │   30    ║
+║   🥉   │  Open-Meteo     │   1.31°C     │   1.05°C    │   30    ║
+║   4    │  AccuWeather    │   1.45°C     │   1.12°C    │   30    ║
+║   5    │  Google Weather │   1.52°C     │   1.19°C    │   30    ║
+╚════════╧═════════════════╧══════════════════════════════════════╝
+
+ThermoSense beats Google Weather by 55% on Day-1 RMSE
+Location: Bangalore (12.9716°N, 77.5946°E)
+Sensor: DHT22 on Raspberry Pi Zero 2 W
+Updated: 2026-05-07 21:00 IST
+```
+
+**Why this is powerful for resume**:
+- Concrete, verifiable claim: "55% better than Google Weather"
+- Live data, not cherry-picked
+- Anyone can visit the URL and see current accuracy
+- Shows end-to-end deployment, not just model training
+
+---
+
+### Phase E: Statistical Rigor (Week 5-6)
+
+**Goal**: Make claims defensible with proper statistical testing.
+
+#### Minimum Viable Evidence
+
+To claim "ThermoSense beats commercial apps", you need:
+
+1. **At least 30 days** of parallel forecasts (statistical minimum for t-test)
+2. **Paired t-test** or Wilcoxon signed-rank test comparing daily errors
+3. **Confidence interval** on the improvement (e.g., "ThermoSense RMSE is 0.4–0.8°C lower than Google, p < 0.01")
+4. **Effect size** (Cohen's d) to show the improvement is practically meaningful
+
+**Implementation** (`src/evaluation/statistical_tests.py`):
+
+```python
+from scipy import stats
+import numpy as np
+
+def compare_forecasters(errors_thermosense: np.ndarray, errors_baseline: np.ndarray):
+    """
+    Paired comparison of forecast errors.
+    
+    Returns:
+        dict with t-statistic, p-value, effect size, and confidence interval
+    """
+    diff = errors_baseline - errors_thermosense  # positive = we're better
+    
+    # Paired t-test (or Wilcoxon if non-normal)
+    t_stat, p_value = stats.ttest_rel(errors_baseline, errors_thermosense)
+    
+    # Effect size (Cohen's d for paired samples)
+    d = diff.mean() / diff.std()
+    
+    # 95% CI on the mean improvement
+    ci_low, ci_high = stats.t.interval(
+        0.95, len(diff)-1, loc=diff.mean(), scale=stats.sem(diff)
+    )
+    
+    return {
+        "mean_improvement_c": round(diff.mean(), 3),
+        "t_statistic": round(t_stat, 3),
+        "p_value": round(p_value, 6),
+        "effect_size_d": round(d, 3),
+        "ci_95_low": round(ci_low, 3),
+        "ci_95_high": round(ci_high, 3),
+        "n_samples": len(diff),
+        "significant": p_value < 0.05
+    }
+```
+
+**Resume-ready statement**: "ThermoSense achieves 0.68°C RMSE on Day-1 forecasts, a 45% improvement over Google Weather (p < 0.01, n=90, Cohen's d=1.2)."
+
+---
+
+### Phase F: Expand Scope for Impact (Week 6-8)
+
+**Goal**: Increase the project's reach and applicability.
+
+#### Option 1: Multi-Location Network
+
+Deploy sensors at 3-5 locations (friends/family homes):
+- Different microclimates (urban, suburban, near water)
+- Train location-specific bias corrections
+- Show the system generalizes across sites
+
+**Resume statement**: "Deployed ThermoSense to 5 locations across Bangalore; average 42% RMSE improvement over commercial apps."
+
+#### Option 2: Agriculture/Cold Chain Application
+
+Partner with a local farmer or cold storage facility:
+- Temperature monitoring for crop frost protection
+- Alert system when predicted overnight low drops below threshold
+- Quantify economic value: "Prevented X crop damage events worth ₹Y"
+
+**Resume statement**: "Deployed ThermoSense for agricultural frost prediction; system issued accurate alerts for 8/9 frost events, saving estimated ₹50,000 in crop losses."
+
+#### Option 3: Energy Optimization
+
+If you have smart home devices:
+- Use forecasts to pre-cool/pre-heat home before price spikes
+- Integrate with smart thermostat API
+- Quantify energy savings
+
+**Resume statement**: "Integrated ThermoSense with smart thermostat; 12% reduction in cooling costs via predictive HVAC scheduling."
+
+---
+
+## Part 3: Updated Success Criteria
+
+### Minimum Bar (Must Have)
+
+| Criterion | Target | How to Verify |
+|-----------|--------|---------------|
+| Real sensor deployed | DHT22/DS18B20 running ≥30 days | Photo + data logs |
+| Live predictions | Daily 3-day forecasts generated automatically | API endpoint returning fresh data |
+| Baseline comparison | ≥3 commercial services tracked daily | Database with parallel forecasts |
+| RMSE improvement | ThermoSense beats best commercial app by ≥20% | Leaderboard showing live metrics |
+| Statistical significance | p < 0.05 on improvement | t-test results displayed |
+| Public deployment | Accessible via URL | Working link |
+
+### Excellence Bar (Should Have)
+
+| Criterion | Target | How to Verify |
+|-----------|--------|---------------|
+| 90-day track record | Continuous operation without gaps | Uptime logs |
+| Multi-location | ≥3 sensors | Dashboard showing all locations |
+| Real users | ≥10 people checking forecasts regularly | Analytics / feedback |
+| Documentation | Blog post / video explaining the project | Published content |
+| Open source adoption | ≥5 GitHub stars, ≥1 fork | GitHub metrics |
+
+### Exceptional Bar (Nice to Have)
+
+| Criterion | Target | How to Verify |
+|-----------|--------|---------------|
+| Practical application | Agriculture/energy/health use case | User testimonial |
+| Media coverage | HackerNews / Reddit / tech blog mention | Links |
+| Conference talk | Presented at local meetup or PyCon | Recording |
+| Academic citation | Used in a research paper | Citation link |
+
+---
+
+## Part 4: Revised Project Structure
 
 ```
 thermosense/
-├── PLAN.md                          ← this file
-├── README.md
-├── .env.example                     ← template; real .env is git-ignored
-├── .gitignore
-├── requirements.txt
+├── README.md                     # Updated with live leaderboard badge
+├── PLAN.md                       # This file
+│
+├── hardware/                     # NEW: Raspberry Pi sensor code
+│   ├── sensor_daemon.py          # Read DHT22, store to SQLite
+│   ├── uploader.py               # Sync to cloud API
+│   ├── alerter.py                # Push notifications on anomalies
+│   ├── requirements.txt
+│   └── install.sh                # systemd service setup
+│
 ├── config/
-│   └── config.yaml                  ← all tunable parameters in one place
+│   └── config.yaml
+│
 ├── data/
-│   ├── raw/                         ← API responses, never hand-edited
-│   ├── processed/                   ← cleaned, merged DataFrames as parquet
-│   ├── features/                    ← feature-engineered parquet files
-│   └── legacy/                      ← existing CSVs moved here
+│   ├── raw/                      # API JSON responses
+│   ├── processed/                # Merged parquet
+│   ├── features/                 # Feature matrix
+│   └── baselines/                # NEW: Daily forecasts from Google/AccuWeather/etc.
+│
 ├── src/
-│   ├── __init__.py
 │   ├── data/
-│   │   ├── __init__.py
-│   │   ├── fetcher.py               ← pulls from Open-Meteo & OWM
-│   │   └── preprocess.py            ← cleans, merges, aligns timestamps
+│   │   ├── fetcher.py
+│   │   ├── preprocess.py
+│   │   └── baseline_collector.py # NEW: Scrape/API commercial forecasts
+│   │
 │   ├── features/
-│   │   ├── __init__.py
-│   │   └── engineer.py              ← all feature creation logic
+│   │   └── engineer.py
+│   │
 │   ├── models/
-│   │   ├── __init__.py
-│   │   ├── base_model.py            ← abstract base class
 │   │   ├── sarima_model.py
 │   │   ├── lgbm_model.py
 │   │   ├── tft_model.py
 │   │   └── ensemble.py
+│   │
 │   ├── evaluation/
-│   │   ├── __init__.py
-│   │   └── metrics.py               ← MAE, RMSE, MAPE, skill score
+│   │   ├── metrics.py
+│   │   └── statistical_tests.py  # NEW: t-tests, effect sizes, CIs
+│   │
 │   └── api/
-│       ├── __init__.py
 │       ├── main.py
 │       └── routes/
 │           ├── forecast.py
 │           ├── history.py
-│           └── metrics.py
-├── notebooks/
-│   ├── 01_eda.ipynb                 ← refactored from Weather-prediction.ipynb
-│   ├── 02_feature_engineering.ipynb
-│   ├── 03_model_comparison.ipynb
-│   ├── 04_error_analysis.ipynb
-│   └── 05_api_demo.ipynb
-├── tests/
-│   ├── test_fetcher.py
-│   ├── test_features.py
-│   └── test_api.py
-└── mlruns/                          ← auto-created by MLflow, git-ignored
-```
-
-**Commands**:
-```bash
-pip install fastapi uvicorn mlflow lightgbm pytorch-forecasting torch \
-            statsmodels pmdarima prophet python-dotenv pyyaml \
-            apscheduler requests httpx pytest pytest-asyncio
-```
-
-**`config/config.yaml`** (reference during implementation):
-```yaml
-location:
-  name: "Bangalore"          # change to your city
-  lat: 12.9716
-  lon: 77.5946
-
-api:
-  open_meteo_base: "https://api.open-meteo.com/v1/forecast"
-  owm_base: "https://api.openweathermap.org/data/2.5"
-
-data:
-  fetch_interval_hours: 6
-  history_days: 365           # how far back to backfill on first run
-  target_hour: 21             # 9 PM reading to match existing dataset
-
-models:
-  sarima:
-    order: [1, 0, 0]
-    seasonal_order: [1, 1, 0, 7]   # weekly seasonality
-  lgbm:
-    n_estimators: 500
-    learning_rate: 0.05
-    max_depth: 6
-    num_leaves: 31
-  tft:
-    max_prediction_length: 3
-    max_encoder_length: 30
-    hidden_size: 64
-    attention_head_size: 4
-    dropout: 0.1
-    epochs: 50
-  ensemble:
-    weights: [0.2, 0.3, 0.5]   # sarima, lgbm, tft
-
-evaluation:
-  test_split_days: 14
-  cv_folds: 5                  # time-series cross-validation
-
-api:
-  host: "0.0.0.0"
-  port: 8000
+│           ├── metrics.py
+│           ├── pipeline.py
+│           └── leaderboard.py    # NEW: Live accuracy comparison
+│
+├── frontend/
+│   └── src/
+│       └── pages/
+│           ├── Dashboard.js
+│           ├── Forecast.js
+│           ├── History.js
+│           ├── Metrics.js
+│           ├── Pipeline.js
+│           └── Leaderboard.js    # NEW: Public accuracy dashboard
+│
+├── scripts/
+│   ├── run_pipeline.py
+│   ├── train_models.py
+│   ├── collect_baselines.py      # NEW: Daily cron job
+│   └── generate_report.py        # NEW: Weekly accuracy report
+│
+├── deployment/
+│   ├── railway.toml              # NEW: Cloud deployment config
+│   ├── Dockerfile
+│   └── cloudflare_tunnel.sh      # NEW: Edge deployment
+│
+└── docs/
+    ├── images/
+    └── BLOG_POST.md              # NEW: Write-up for publication
 ```
 
 ---
 
-### Phase 1 — Data Pipeline (Days 2–4)
+## Part 5: Resume Bullet Points (Target)
 
-**Goal**: Replace manual CSV data entry with an automated ingestion pipeline that pulls live + historical data.
+After completing this transformation, you can write:
 
-#### 1.1 Choose APIs
+### Weak (Current State)
+> "Built a temperature forecasting ML pipeline using SARIMA, LightGBM, and Temporal Fusion Transformer with a React dashboard."
 
-**Open-Meteo** (free, no API key required):
-- Endpoint: `https://api.open-meteo.com/v1/forecast`
-- Variables: `temperature_2m`, `relativehumidity_2m`, `dewpoint_2m`, `precipitation`, `pressure_msl`, `cloudcover`, `windspeed_10m`, `uv_index`
-- Historical data: `https://archive-api.open-meteo.com/v1/archive` (free, goes back to 1940)
-- **This is the primary data source — completely free, no rate limits for modest usage**
+### Strong (After Transformation)
 
-**OpenWeatherMap** (optional, free tier = 1000 calls/day):
-- Provides "current conditions" as a cross-check and to obtain the commercial app prediction baseline for comparison
-- Store API key in `.env` as `OWM_API_KEY`
+> **ThermoSense — Hyperlocal Weather Intelligence System**
+> - Deployed an IoT sensor network (Raspberry Pi + DHT22) to collect real-time temperature data from 3 locations
+> - Developed an ensemble ML model (SARIMA + LightGBM + TFT) achieving **45% lower RMSE** than Google Weather on Day-1 forecasts (p < 0.01, n=90 days)
+> - Built a public live leaderboard comparing ThermoSense vs 4 commercial weather services, updated daily
+> - Served 500+ API requests/day for local users via FastAPI + Railway deployment
+> - Open-sourced with 15 GitHub stars; featured on Hacker News
 
-#### 1.2 `src/data/fetcher.py`
+### For Specific Roles
 
-Key functions:
-```python
-def fetch_historical_open_meteo(lat, lon, start_date, end_date) -> pd.DataFrame:
-    """
-    Fetches hourly data from Open-Meteo historical archive.
-    Resamples to daily 9PM snapshot to match existing dataset format.
-    Returns DataFrame with columns:
-      date, temp_c, humidity_pct, dewpoint_c, precip_mm,
-      pressure_hpa, cloudcover_pct, windspeed_kmh, uv_index
-    """
+**Data Scientist / ML Engineer**:
+> "Designed a hyperlocal temperature forecasting system using Temporal Fusion Transformers; achieved 0.68°C RMSE by engineering a novel 'API bias' feature that captures systematic microclimate offsets. Validated improvement over commercial baselines with paired statistical testing."
 
-def fetch_forecast_open_meteo(lat, lon, days=7) -> pd.DataFrame:
-    """Fetches 7-day forecast for real-time prediction serving."""
+**Full-Stack / MLOps Engineer**:
+> "Built end-to-end ML system: DHT22 sensor → Raspberry Pi edge collection → cloud API (FastAPI) → React dashboard. Deployed via Railway with 99.5% uptime over 90 days. Automated daily data ingestion, model retraining, and baseline comparison."
 
-def fetch_owm_current(lat, lon, api_key) -> dict:
-    """Fetches current conditions from OWM for comparison baseline."""
-```
-
-**Note on security**: API keys must be loaded via `os.environ.get("OWM_API_KEY")` loaded from `.env`. Never hardcode them.
-
-#### 1.3 `src/data/preprocess.py`
-
-```python
-def merge_with_legacy(api_df, legacy_csv_path) -> pd.DataFrame:
-    """
-    Merges Open-Meteo historical data with existing 40-day CSV.
-    Existing manual readings take precedence for the overlap period
-    since they are actual sensor readings (not API values).
-    Fills gaps using API data.
-    """
-
-def align_to_daily_9pm(hourly_df) -> pd.DataFrame:
-    """Resamples hourly API data to daily 9 PM snapshots."""
-
-def detect_and_fill_gaps(df) -> pd.DataFrame:
-    """Detects missing dates, forward-fills or interpolates."""
-```
-
-#### 1.4 Backfill Run
-
-On first run, pull 365 days of history from Open-Meteo archive to give the deep learning model enough training data. The existing 40-day CSV bridges the gap as the "ground truth" sensor.
+**Embedded / IoT Engineer**:
+> "Designed and deployed a solar-powered Raspberry Pi weather station with sub-1°C sensor accuracy. Implemented local SQLite storage with cloud sync, handling network outages gracefully. Edge inference reduces API calls by 80%."
 
 ---
 
-### Phase 2 — Feature Engineering (Days 5–6)
+## Part 6: Implementation Timeline
 
-**Goal**: Transform raw time series into a rich feature matrix that captures temporal patterns, external drivers, and local bias.
-
-#### Features to Engineer (`src/features/engineer.py`)
-
-**Lag features** (autoregressive signals):
-```
-temp_lag_1, temp_lag_2, temp_lag_3, temp_lag_7
-humidity_lag_1, pressure_lag_1
-```
-
-**Rolling window statistics** (trend signals):
-```
-temp_roll3_mean, temp_roll3_std
-temp_roll7_mean, temp_roll7_max, temp_roll7_min
-temp_roll14_mean
-```
-
-**Calendar features** (seasonal signals):
-```
-month, day_of_year, week_of_year
-is_monsoon (June–September = 1, else 0)
-day_sin, day_cos       ← cyclic encoding of day_of_year
-month_sin, month_cos   ← cyclic encoding of month
-```
-
-**External meteorological features** (from Open-Meteo):
-```
-humidity_pct, dewpoint_c, pressure_hpa, cloudcover_pct,
-windspeed_kmh, precip_mm, uv_index
-```
-
-**Local bias / residual feature** (the key innovation):
-```
-api_bias = sensor_actual_temp - open_meteo_api_temp
-api_bias_roll7_mean   ← rolling mean of local bias
-```
-This is the feature that makes our model learn the *hyperlocal correction* on top of the global API forecast. This is the core differentiator from ARIMA on raw temperature.
+| Week | Focus | Deliverables |
+|------|-------|--------------|
+| 1 | Hardware setup | DHT22 + Pi deployed, sensor_daemon running, first 7 days of data |
+| 2 | Baseline collection | AccuWeather/Google/OWM daily forecasts being stored |
+| 3 | Cloud deployment | Railway or Cloudflare Tunnel live |
+| 4 | Leaderboard page | Public comparison dashboard |
+| 5 | 30-day milestone | First statistically valid comparison (p-value computed) |
+| 6 | Polish + documentation | Blog post draft, README updated with live badge |
+| 7 | Multi-location (optional) | Second sensor deployed |
+| 8 | 60-day milestone | Robust statistical results, ready for publication |
 
 ---
 
-### Phase 3 — Model Development (Days 7–14)
+## Part 7: Quick Wins (If Short on Time)
 
-**Goal**: Train, tune, and compare four approaches with rigorous cross-validation. All experiments tracked in MLflow.
+If you cannot do the full transformation, here are partial improvements ranked by impact:
 
-#### 3.1 Baseline: SARIMA(X)
+### Tier 1: Minimal Effort, Maximum Impact
 
-Upgrade from `ARIMA(1,0,0)` to `SARIMAX` with:
-- Seasonal component: `(1,1,0,7)` — weekly seasonality (monsoon cycles)
-- Exogenous variables: `humidity_pct`, `pressure_hpa` (SARIMAX extension)
-- Auto-select via `pmdarima.auto_arima` with `seasonal=True`, `m=7`
+1. **Use a public PWS**: Find a Weather Underground station near you and use its data instead of deploying your own sensor. Still demonstrates the bias-correction concept.
 
-**File**: `src/models/sarima_model.py`
+2. **Collect 30 days of parallel baselines**: Write a simple cron job that fetches AccuWeather and Google Weather forecasts daily. After 30 days, you have a real comparison.
 
-```python
-class SARIMAXModel(BaseModel):
-    def fit(self, train_df, exog_cols):
-        self.model = auto_arima(
-            train_df["temp_c"],
-            exogenous=train_df[exog_cols],
-            seasonal=True, m=7,
-            information_criterion="aic",
-            stepwise=True
-        )
+3. **Deploy to Railway (1 hour)**: Your current API works. Just deploy it and get a public URL.
 
-    def predict(self, steps, future_exog):
-        return self.model.predict(n_periods=steps, exogenous=future_exog)
-```
+### Tier 2: Moderate Effort
 
-**Expected improvement**: Adding seasonality + exogenous variables should reduce RMSE from 0.87°C to roughly 0.6–0.7°C.
+4. **Add statistical testing**: Implement the `compare_forecasters()` function and display p-values on the Metrics page.
 
-#### 3.2 LightGBM with Time-Series Cross-Validation
+5. **Create a leaderboard page**: Even with synthetic baselines, showing "ThermoSense vs Open-Meteo vs OWM" as a live dashboard is more compelling than static metrics.
 
-LightGBM treats forecasting as a supervised regression problem using the engineered features above. It is fast, handles missing values, and natively captures feature interactions.
+### Tier 3: Full Effort
 
-**File**: `src/models/lgbm_model.py`
-
-```python
-class LGBMForecastModel(BaseModel):
-    def fit(self, feature_df, target_col="temp_c"):
-        X = feature_df.drop(columns=[target_col, "date"])
-        y = feature_df[target_col]
-        self.model = lgb.train(
-            params=self.config["lgbm"],
-            train_set=lgb.Dataset(X, y),
-            num_boost_round=500,
-            valid_sets=[lgb.Dataset(X_val, y_val)],
-            callbacks=[lgb.early_stopping(50), lgb.log_evaluation(50)]
-        )
-```
-
-**Cross-validation**: Use `TimeSeriesSplit(n_splits=5)` from scikit-learn. No data leakage — each fold's validation set is always in the future relative to training.
-
-**Feature importance**: Log SHAP values to MLflow as artifacts for explainability.
-
-#### 3.3 Temporal Fusion Transformer (TFT) — The Core Innovation
-
-TFT (Lim et al., 2021, NeurIPS) is an attention-based deep learning architecture purpose-built for multi-horizon time series forecasting. Key advantages over LSTM:
-- **Gated residual networks** filter irrelevant features
-- **Variable selection networks** learn which inputs matter at each time step
-- **Multi-head attention** captures long-range dependencies across time
-- **Quantile outputs** — predicts 10th/50th/90th percentile, giving calibrated uncertainty bands
-
-**Library**: `pytorch-forecasting` (wraps PyTorch Lightning + TFT implementation)
-
-**File**: `src/models/tft_model.py`
-
-```python
-from pytorch_forecasting import TemporalFusionTransformer, TimeSeriesDataSet
-from pytorch_forecasting.metrics import QuantileLoss
-
-class TFTModel(BaseModel):
-    def prepare_dataset(self, df):
-        return TimeSeriesDataSet(
-            df,
-            time_idx="time_idx",              # integer time index
-            target="temp_c",
-            group_ids=["location"],           # single location for now
-            max_encoder_length=30,            # look-back window
-            max_prediction_length=3,          # 3-day forecast horizon
-            time_varying_known_reals=[
-                "month_sin", "month_cos", "day_sin", "day_cos",
-                "humidity_pct", "pressure_hpa", "cloudcover_pct",
-                "windspeed_kmh", "precip_mm"
-            ],
-            time_varying_unknown_reals=[
-                "temp_c", "dewpoint_c", "api_bias_roll7_mean"
-            ],
-            target_normalizer=GroupNormalizer()
-        )
-
-    def fit(self, train_dataset, val_dataset):
-        self.model = TemporalFusionTransformer.from_dataset(
-            train_dataset,
-            learning_rate=1e-3,
-            hidden_size=64,
-            attention_head_size=4,
-            dropout=0.1,
-            loss=QuantileLoss(quantiles=[0.1, 0.5, 0.9])
-        )
-        trainer = pl.Trainer(max_epochs=50, gradient_clip_val=0.1)
-        trainer.fit(self.model, train_dataloader, val_dataloader)
-```
-
-**Why TFT beats LSTM here**: Attention mechanism lets the model "look back" at the same calendar period from prior weeks (monsoon pattern) without vanishing gradients. The variable selection network will likely upweight `humidity_pct` and `api_bias_roll7_mean` — interpretable and correct.
-
-#### 3.4 Ensemble Stacker
-
-A linear meta-learner (Ridge Regression) trained on out-of-fold predictions from SARIMA(X), LightGBM, and TFT. Learns optimal weighting per forecast horizon (Day 1/2/3 weights differ).
-
-**File**: `src/models/ensemble.py`
-
-```python
-class EnsembleStacker:
-    """
-    Level-1 meta-learner over SARIMA, LightGBM, TFT predictions.
-    Trained on out-of-fold predictions to avoid overfitting.
-    """
-    def fit(self, oof_predictions_df, actuals):
-        self.meta = Ridge(alpha=1.0)
-        self.meta.fit(oof_predictions_df, actuals)
-```
+6. **Deploy real hardware**: The Raspberry Pi + DHT22 setup is genuinely impressive and differentiates you from everyone who just calls APIs.
 
 ---
 
-### Phase 4 — Evaluation Framework (Days 13–14)
+## Part 8: Key Metrics to Track
 
-**Goal**: Establish a rigorous, reproducible comparison protocol.
+### Daily Metrics (Automated)
 
-#### 4.1 Metrics (`src/evaluation/metrics.py`)
+| Metric | Stored In | Updated |
+|--------|-----------|---------|
+| Sensor 9 PM reading | `daily_actuals` table | Nightly |
+| ThermoSense Day-1 forecast | `daily_forecasts` table | Nightly |
+| Google Day-1 forecast | `daily_forecasts` table | Nightly |
+| AccuWeather Day-1 forecast | `daily_forecasts` table | Nightly |
+| Open-Meteo Day-1 forecast | `daily_forecasts` table | Nightly |
 
-| Metric | Formula | Why |
-|---|---|---|
-| **MAE** | mean(|y - ŷ|) | Intuitive, same unit as temp |
-| **RMSE** | sqrt(mean((y-ŷ)²)) | Penalizes large errors; matches existing baseline |
-| **MAPE** | mean(|y-ŷ|/y) × 100 | Scale-independent % error |
-| **Skill Score** | 1 - (RMSE_model / RMSE_climatology) | How much better than "just predict the mean"? |
-| **Coverage (90%)** | % of actuals within [Q10, Q90] | Calibration of TFT uncertainty |
+### Weekly Metrics (Dashboard)
 
-#### 4.2 Time-Series Cross-Validation Protocol
+| Metric | Calculation | Display |
+|--------|-------------|---------|
+| ThermoSense RMSE (7d) | sqrt(mean((pred - actual)²)) | Leaderboard |
+| Best commercial RMSE (7d) | min(Google, AccuWeather, ...) | Leaderboard |
+| Improvement % | (1 - ts_rmse / best_commercial_rmse) * 100 | Headline stat |
+| Uptime | hours_online / (7*24) | Status badge |
 
-```
-Training window:  [Day 1 ... Day N-14]
-Validation:       [Day N-13 ... Day N-7]
-Test (hold-out):  [Day N-6  ... Day N]    ← never seen during development
-```
+### Monthly Metrics (Report)
 
-Use `TimeSeriesSplit` with expanding window (not rolling) to simulate real deployment.
-
-#### 4.3 Expected Results Table (Target)
-
-| Model | Day-1 RMSE | Day-2 RMSE | Day-3 RMSE |
-|---|---|---|---|
-| ARIMA(1,0,0) baseline | 1.34°C | 1.51°C | 1.86°C |
-| SARIMA(X) | ~0.9°C | ~1.1°C | ~1.4°C |
-| LightGBM | ~0.7°C | ~0.9°C | ~1.2°C |
-| TFT (ours) | **~0.5°C** | **~0.7°C** | **~1.0°C** |
-| Ensemble | **~0.45°C** | **~0.65°C** | **~0.9°C** |
-| Commercial App | ~1.0°C | ~1.2°C | ~1.5°C |
-
-*Targets based on TFT literature benchmarks on temperature datasets; actual results depend on data volume.*
+| Metric | Why It Matters |
+|--------|----------------|
+| Rolling 30-day RMSE per source | Trend over time |
+| p-value (ThermoSense vs best) | Statistical significance |
+| Effect size (Cohen's d) | Practical significance |
+| Sensor data completeness % | Data quality indicator |
+| Worst prediction day | Identifies failure modes |
 
 ---
 
-### Phase 5 — MLflow Experiment Tracking (Days 13–14, parallel)
+## Part 9: What NOT to Do
 
-**Goal**: Every training run is logged, comparable, and reproducible.
+### Anti-Patterns to Avoid
 
-```python
-import mlflow
+1. **Don't keep adding features to the dashboard** — shipping beats polishing.
 
-with mlflow.start_run(run_name="TFT_v1"):
-    mlflow.log_params({
-        "model": "TFT",
-        "max_encoder_length": 30,
-        "hidden_size": 64,
-        "epochs": 50
-    })
-    mlflow.log_metrics({
-        "day1_rmse": rmse_day1,
-        "day2_rmse": rmse_day2,
-        "day3_rmse": rmse_day3,
-        "day1_mae": mae_day1,
-        "skill_score": skill
-    })
-    mlflow.log_artifact("plots/residual_plot.png")
-    mlflow.pytorch.log_model(tft_model, "model")
-```
+2. **Don't train more models** — you have enough models. The bottleneck is real data, not model architectur.
 
-Access the UI with:
-```bash
-mlflow ui --port 5000
-```
+3. **Don't optimize for RMSE on synthetic data** — the current 0.221°C is meaningless without real sensor validation.
 
-Register the best model as `"thermosense-champion"` in the MLflow Model Registry.
+4. **Don't claim "beats commercial apps" without evidence** — your README says "84% improvement" but this is against your own ARIMA baseline, not Google.
+
+5. **Don't over-engineer the hardware** — a simple DHT22 on a breadboard is enough. You're not building a production weather station.
 
 ---
 
-### Phase 6 — FastAPI Service (Days 15–17)
+## Part 10: Final Checklist Before Putting on Resume
 
-**Goal**: Serve real-time predictions via a REST API with automatic OpenAPI docs.
+Before listing ThermoSense on your resume, verify:
 
-#### 6.1 `src/api/main.py`
+- [ ] **Real sensor**: Deployed for ≥30 days, not simulated
+- [ ] **Real baselines**: Commercial app forecasts collected daily
+- [ ] **Real comparison**: ThermoSense vs ≥2 commercial services
+- [ ] **Statistical test**: p-value < 0.05 on improvement claim
+- [ ] **Public URL**: Anyone can visit and verify claims
+- [ ] **Data available**: Raw sensor data downloadable or visible
+- [ ] **No cherry-picking**: Results shown for entire period, not selected days
 
-```python
-from fastapi import FastAPI
-from contextlib import asynccontextmanager
-import mlflow.pyfunc
-
-app = FastAPI(title="ThermoSense API", version="1.0")
-model = None
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global model
-    model = mlflow.pyfunc.load_model("models:/thermosense-champion/Production")
-    yield
-
-app = FastAPI(lifespan=lifespan)
-```
-
-#### 6.2 Endpoints
-
-**`GET /forecast`**
-```json
-{
-  "location": "Bangalore",
-  "generated_at": "2024-07-12T21:00:00",
-  "forecasts": [
-    {"date": "2024-07-13", "predicted_temp_c": 26.4,
-     "lower_bound": 25.1, "upper_bound": 27.8, "horizon_days": 1},
-    {"date": "2024-07-14", "predicted_temp_c": 25.9,
-     "lower_bound": 24.3, "upper_bound": 27.5, "horizon_days": 2},
-    {"date": "2024-07-15", "predicted_temp_c": 25.5,
-     "lower_bound": 23.9, "upper_bound": 27.1, "horizon_days": 3}
-  ]
-}
-```
-
-**`POST /feedback`** (closes the loop)
-```json
-{"date": "2024-07-13", "actual_temp_c": 26.0}
-```
-This endpoint appends the actual reading to the database, updates the `api_bias` rolling feature, and triggers incremental model retraining (online learning).
-
-**`GET /metrics`** — Returns live MAE/RMSE over last 30 days vs. commercial app baseline.
-
-#### 6.3 Run the API
-
-```bash
-uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-OpenAPI docs auto-generated at `http://localhost:8000/docs`.
-
-#### 6.4 Scheduled Data Fetching
-
-```python
-from apscheduler.schedulers.background import BackgroundScheduler
-
-scheduler = BackgroundScheduler()
-scheduler.add_job(fetch_and_store_latest, "cron", hour=21, minute=30)
-scheduler.start()
-```
-
-Every night at 9:30 PM, the system fetches the latest Open-Meteo data, runs predictions, and stores them. At 10 PM the user can POST the actual reading via `/feedback`.
+If any of these are missing, your claims are **unverifiable** and a savvy interviewer will notice.
 
 ---
 
-### Phase 7 — Notebook Refactoring (Days 18–19)
+## Conclusion
 
-Move all existing notebook analysis into the new structure:
+This project has excellent bones — the ML pipeline, feature engineering, and dashboard are genuinely well-built. But right now it's a **demo**, not a **solution**.
 
-| Notebook | Contents |
-|---|---|
-| `01_eda.ipynb` | Existing histograms, time series plots, ADF test, ACF/PACF — unchanged logic, cleaner presentation, reads from `data/processed/` |
-| `02_feature_engineering.ipynb` | Demonstrates each feature category, correlation heatmaps, lag plots |
-| `03_model_comparison.ipynb` | Trains all 4 models, plots predictions vs. actuals for all horizons, renders the comparison table |
-| `04_error_analysis.ipynb` | Residual distribution plots, Q-Q plots, error by month/season, SHAP values from LightGBM |
-| `05_api_demo.ipynb` | Live demo calling the running FastAPI — shows the full end-to-end system working |
+The transformation from "impressive tech demo" to "impactful project" requires:
 
----
+1. **Real data** from a deployed sensor
+2. **Real comparison** against services people actually use
+3. **Real deployment** where predictions are consumed
+4. **Real evidence** with statistical rigor
 
-### Phase 8 — Testing (Days 18–19, parallel)
+Complete these, and you'll have one of the strongest ML projects in any portfolio. The hardware cost is ~$25 and the time investment is 4-6 weeks of part-time work.
 
-```
-tests/
-├── test_fetcher.py       ← mock API responses; test data parsing
-├── test_features.py      ← test lag creation, rolling windows, no leakage
-└── test_api.py           ← test API endpoints with httpx AsyncClient
-```
-
-Run with:
-```bash
-pytest tests/ -v
-```
+The question isn't whether you *can* build a system that beats Google Weather for your specific location — you almost certainly can, because microclimate bias is real. The question is whether you'll do the work to *prove* it.
 
 ---
 
-## 5. Implementation Command Reference
+## References
 
-When implementing, reference this plan with these phase names:
-
-| Command Phrase | What to implement |
-|---|---|
-| `implement Phase 0` | Directory scaffold, requirements.txt, config.yaml |
-| `implement Phase 1` | `src/data/fetcher.py` + `src/data/preprocess.py` |
-| `implement Phase 2` | `src/features/engineer.py` |
-| `implement Phase 3 SARIMA` | `src/models/sarima_model.py` |
-| `implement Phase 3 LightGBM` | `src/models/lgbm_model.py` |
-| `implement Phase 3 TFT` | `src/models/tft_model.py` |
-| `implement Phase 3 Ensemble` | `src/models/ensemble.py` |
-| `implement Phase 4` | `src/evaluation/metrics.py` + CV protocol |
-| `implement Phase 5` | MLflow logging wrappers |
-| `implement Phase 6` | `src/api/` (full FastAPI service) |
-| `implement Phase 7` | Refactored notebooks |
-| `implement Phase 8` | `tests/` |
-
----
-
-## 6. Open-Meteo API — No Key Required
-
-This is the primary data source. Example call (no authentication):
-
-```python
-import requests
-
-params = {
-    "latitude": 12.9716,
-    "longitude": 77.5946,
-    "hourly": "temperature_2m,relativehumidity_2m,dewpoint_2m,precipitation,pressure_msl,cloudcover,windspeed_10m,uv_index",
-    "timezone": "Asia/Kolkata",
-    "start_date": "2024-06-01",
-    "end_date": "2024-07-11"
-}
-r = requests.get("https://archive-api.open-meteo.com/v1/archive", params=params)
-data = r.json()
-```
-
-For the forecast (next 7 days):
-```python
-r = requests.get("https://api.open-meteo.com/v1/forecast", params={
-    "latitude": 12.9716, "longitude": 77.5946,
-    "hourly": "temperature_2m,relativehumidity_2m,pressure_msl",
-    "forecast_days": 7
-})
-```
-
----
-
-## 7. Environment Variables (`.env`)
-
-```
-# Open-Meteo requires no API key — see fetcher.py
-# OpenWeatherMap (optional, for commercial app baseline comparison)
-OWM_API_KEY=your_key_here
-
-# Location
-LOCATION_LAT=12.9716
-LOCATION_LON=77.5946
-LOCATION_NAME=Bangalore
-
-# API server
-API_HOST=0.0.0.0
-API_PORT=8000
-
-# MLflow
-MLFLOW_TRACKING_URI=./mlruns
-```
-
-Copy `.env.example` to `.env` and fill in your values. Never commit `.env`.
-
----
-
-## 8. Key Design Decisions & Rationale
-
-### Why TFT over LSTM?
-TFT's attention mechanism allows it to weigh specific past time steps (e.g., "same week last month during monsoon") rather than compressing all history into a hidden state. For seasonal weather with 365+ days of data, this is critical. TFT also produces quantile forecasts natively, giving calibrated uncertainty intervals that raw ARIMA cannot.
-
-### Why LightGBM as intermediate model?
-Between ARIMA (underfitting, univariate) and TFT (data-hungry, compute-heavy), LightGBM offers a practical middle ground: it handles the full feature matrix, trains in seconds, and provides SHAP-based explainability. It will likely outperform ARIMA with less data than TFT needs.
-
-### Why the `api_bias` feature?
-This is the single most impactful innovation. Commercial weather apps report conditions at the nearest weather station, which may be kilometers away and in a different microclimate. By computing `sensor_actual - api_predicted` as a rolling feature, the model learns the *systematic offset* of your measurement location. This is why our model can beat the commercial app even with far less training data.
-
-### Why Open-Meteo over other APIs?
-- Completely free, no rate limits for reasonable usage
-- 80+ years of historical data via the archive endpoint
-- No API key — no credential management risk
-- WMO-calibrated data; same quality as paid providers
-- 7-day forecast available for real-time prediction
-
-### Why FastAPI over Flask?
-- Native async support — critical for non-blocking data fetches
-- Automatic OpenAPI/Swagger docs at `/docs`
-- Pydantic validation of request/response models
-- 3–5x faster than Flask for I/O-bound workloads
-- Built-in `lifespan` for model loading at startup
-
----
-
-## 9. Success Criteria
-
-The project is "next-level" when:
-
-- [ ] Day-1 RMSE ≤ 0.6°C (beats existing 0.87°C by ≥ 30%)
-- [ ] TFT outperforms LightGBM outperforms SARIMA(X) outperforms ARIMA — validated via CV
-- [ ] Ensemble beats TFT alone on at least Day-2 and Day-3 horizons
-- [ ] API returns predictions in < 200ms (p95)
-- [ ] `/feedback` endpoint enables live accuracy tracking
-- [ ] MLflow UI shows full run history with parameter sweeps
-- [ ] `GET /metrics` confirms model beats commercial app baseline on last 30 days
-- [ ] All 5 notebooks are clean and runnable end-to-end
-
----
-
-## 10. References
-
-- Lim, B. et al. (2021). *Temporal Fusion Transformers for Interpretable Multi-horizon Time Series Forecasting*. International Journal of Forecasting. [arXiv:1912.09363](https://arxiv.org/abs/1912.09363)
+- Lim, B. et al. (2021). *Temporal Fusion Transformers for Interpretable Multi-horizon Time Series Forecasting*. [arXiv:1912.09363](https://arxiv.org/abs/1912.09363)
 - Ke, G. et al. (2017). *LightGBM: A Highly Efficient Gradient Boosting Decision Tree*. NeurIPS.
 - Open-Meteo documentation: https://open-meteo.com/en/docs
-- pytorch-forecasting documentation: https://pytorch-forecasting.readthedocs.io
-- MLflow documentation: https://mlflow.org/docs/latest/index.html
-- Box, G. E. P., & Jenkins, G. M. (1976). *Time Series Analysis: Forecasting and Control*
+- DHT22 sensor datasheet: https://www.sparkfun.com/datasheets/Sensors/Temperature/DHT22.pdf
+- Weather Underground PWS network: https://www.wunderground.com/pws/overview

@@ -12,12 +12,22 @@ arXiv: 1912.09363
 Expected performance: Day-1 RMSE ~0.5°C — best among all single models.
 """
 
+from __future__ import annotations
+
 import pickle
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+
+_TFT_AVAILABLE = False
+pl = None
+torch = None
+TemporalFusionTransformer = None
+TimeSeriesDataSet = None
+GroupNormalizer = None
+QuantileLoss = None
 
 try:
     import pytorch_lightning as pl
@@ -27,7 +37,7 @@ try:
     from pytorch_forecasting.metrics import QuantileLoss
     _TFT_AVAILABLE = True
 except ImportError:
-    _TFT_AVAILABLE = False
+    pass
 
 from .base_model import BaseModel
 
@@ -72,7 +82,7 @@ class TFTModel(BaseModel):
         df = df.fillna(0)
         return df
 
-    def prepare_dataset(self, df: pd.DataFrame) -> TimeSeriesDataSet:
+    def prepare_dataset(self, df: pd.DataFrame) -> "TimeSeriesDataSet":
         """
         Construct a pytorch-forecasting TimeSeriesDataSet from the feature DataFrame.
 

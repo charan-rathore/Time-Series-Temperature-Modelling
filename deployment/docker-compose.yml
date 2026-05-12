@@ -1,0 +1,30 @@
+# ThermoSense Docker Compose
+# Run: docker-compose -f deployment/docker-compose.yml up -d
+
+version: '3.8'
+
+services:
+  thermosense:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - THERMOSENSE_API_URL=http://localhost:8000
+      - OWM_API_KEY=${OWM_API_KEY:-}
+      - ACCUWEATHER_API_KEY=${ACCUWEATHER_API_KEY:-}
+    volumes:
+      - thermosense-data:/app/data
+      - thermosense-models:/app/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  thermosense-data:
+  thermosense-models:

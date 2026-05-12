@@ -8,6 +8,36 @@ location:
   lon: 77.5946
   timezone: "Asia/Kolkata"
 
+# Multi-location support for Phase F
+# Each location can have its own sensor and bias corrections
+locations:
+  - id: "bangalore_central"
+    name: "Bangalore - Central"
+    lat: 12.9716
+    lon: 77.5946
+    timezone: "Asia/Kolkata"
+    type: "urban"
+    description: "Main sensor location in central Bangalore"
+    active: true
+  
+  - id: "bangalore_whitefield"
+    name: "Bangalore - Whitefield"
+    lat: 12.9698
+    lon: 77.7500
+    timezone: "Asia/Kolkata"
+    type: "suburban"
+    description: "Eastern suburban area"
+    active: false
+  
+  - id: "bangalore_electronic_city"
+    name: "Bangalore - Electronic City"
+    lat: 12.8456
+    lon: 77.6603
+    timezone: "Asia/Kolkata"
+    type: "suburban"
+    description: "Southern tech hub"
+    active: false
+
 api:
   open_meteo_forecast_url: "https://api.open-meteo.com/v1/forecast"
   open_meteo_archive_url: "https://archive-api.open-meteo.com/v1/archive"

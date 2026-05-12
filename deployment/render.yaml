@@ -1,0 +1,23 @@
+# Render.com Blueprint for ThermoSense
+# Deploy: Push to GitHub and connect repo in Render dashboard
+# Or use: render blueprint launch
+
+services:
+  - type: web
+    name: thermosense
+    env: python
+    region: oregon  # or singapore, frankfurt, etc.
+    plan: free  # or starter, standard
+    buildCommand: |
+      pip install -r requirements.txt
+      cd frontend && npm install && npm run build
+    startCommand: uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: OWM_API_KEY
+        sync: false  # Set in Render dashboard
+      - key: ACCUWEATHER_API_KEY
+        sync: false  # Set in Render dashboard
+    autoDeploy: true

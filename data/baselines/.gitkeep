@@ -1,0 +1,2 @@
+# This file keeps the baselines directory in git.
+# The forecasts.db database will be created here but is git-ignored.

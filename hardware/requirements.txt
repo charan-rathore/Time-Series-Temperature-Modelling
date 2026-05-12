@@ -1,0 +1,12 @@
+# ThermoSense Hardware Dependencies
+# Install on Raspberry Pi with: pip install -r requirements.txt
+
+# DHT22 sensor library (Raspberry Pi only)
+# On non-Pi systems, sensor_daemon.py runs in simulation mode
+Adafruit-DHT>=1.4.0; platform_machine == 'armv7l' or platform_machine == 'aarch64'
+
+# HTTP client for uploader
+requests>=2.28.0
+
+# Optional: better GPIO support on newer Pi models
+# RPi.GPIO>=0.7.0; platform_machine == 'armv7l' or platform_machine == 'aarch64'

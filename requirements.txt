@@ -40,3 +40,6 @@ plotly>=5.18.0
 # Testing
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+
+# ── Phase A/B: Baseline Collection & Sensor ──────────────────────────────────
+# Already included: requests, scipy (for statistical tests)

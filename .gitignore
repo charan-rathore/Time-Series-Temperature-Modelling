@@ -224,6 +224,11 @@ secrets.json
 data/raw/
 data/processed/
 data/features/
+data/baselines/*.db
+
+# Hardware sensor data (local on Raspberry Pi)
+hardware/readings.db
+hardware/*.log
 
 # MLflow experiment tracking (can be very large)
 mlruns/
