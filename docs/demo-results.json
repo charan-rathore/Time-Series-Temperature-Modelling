@@ -1,0 +1,129 @@
+{
+  "dataset": {
+    "source": "Open-Meteo Historical Archive API",
+    "location": "Bangalore (12.9716, 77.5946)",
+    "timezone": "Asia/Kolkata",
+    "snapshot_hour_local": 21,
+    "n_days": 365,
+    "date_range": [
+      "2025-08-02",
+      "2026-08-01"
+    ],
+    "train_n": 323,
+    "val_n": 14,
+    "test_n": 14,
+    "url": "https://archive-api.open-meteo.com/v1/archive"
+  },
+  "day1_holdout_comparison": [
+    {
+      "model": "Persistence (t-1)",
+      "n": 13,
+      "mae": 0.754,
+      "rmse": 0.827,
+      "mape": 3.321,
+      "skill_vs_climatology": -0.277
+    },
+    {
+      "model": "Climatology (train mean)",
+      "n": 14,
+      "mae": 0.509,
+      "rmse": 0.629,
+      "mape": 2.267,
+      "skill_vs_climatology": 0.0
+    },
+    {
+      "model": "Seasonal climatology (DOY)",
+      "n": 14,
+      "mae": 0.509,
+      "rmse": 0.629,
+      "mape": 2.267,
+      "skill_vs_climatology": 0.0
+    },
+    {
+      "model": "Regional API lag-1 (Open-Meteo style)",
+      "n": 13,
+      "mae": 0.754,
+      "rmse": 0.827,
+      "mape": 3.321,
+      "skill_vs_climatology": -0.277
+    },
+    {
+      "model": "ThermoSense SARIMA",
+      "n": 14,
+      "mae": 0.541,
+      "rmse": 0.649,
+      "mape": 2.373,
+      "skill_vs_climatology": -0.031
+    }
+  ],
+  "training_pipeline_results": {
+    "sarima": {
+      "day1": {
+        "mae": 1.147785860126337,
+        "rmse": 1.147785860126337,
+        "mape": 5.0563253750058905,
+        "skill_score": 1.0,
+        "coverage_90pct": 1.0
+      },
+      "day2": {
+        "mae": 0.8327316758138537,
+        "rmse": 0.8903376791737803,
+        "mape": 3.715496383607005,
+        "skill_score": -0.978528175941737,
+        "coverage_90pct": 1.0
+      },
+      "day3": {
+        "mae": 0.8004213729472353,
+        "rmse": 0.8419828056331902,
+        "mape": 3.538759157922705,
+        "skill_score": -0.5487583439108976,
+        "coverage_90pct": 1.0
+      }
+    },
+    "lgbm": {
+      "day1": {
+        "mae": 0.4051060088036313,
+        "rmse": 0.5102030426427654,
+        "mape": 1.8051599966440592,
+        "skill_score": 0.10377751575267002
+      },
+      "day2": {
+        "mae": 0.5089956952566036,
+        "rmse": 0.6288696648331322,
+        "mape": 2.266727321154618,
+        "skill_score": -0.10467223081451249
+      },
+      "day3": {
+        "mae": 0.506811687776021,
+        "rmse": 0.6256600761037713,
+        "mape": 2.256470034833397,
+        "skill_score": -0.09903426838774942
+      }
+    },
+    "ensemble": {
+      "day1": {
+        "mae": 0.10705421338270682,
+        "rmse": 0.10705421338270682,
+        "mape": 0.4716044642409992,
+        "skill_score": 1.0
+      },
+      "day2": {
+        "mae": 0.06767110798874398,
+        "rmse": 0.06767110798874398,
+        "mape": 0.2981106078799295,
+        "skill_score": 1.0
+      },
+      "day3": {
+        "mae": 0.06767110798874398,
+        "rmse": 0.06767110798874398,
+        "mape": 0.2981106078799295,
+        "skill_score": 1.0
+      }
+    }
+  },
+  "notes": [
+    "Ground truth is Open-Meteo 9 PM local temperature for Bangalore over ~365 days.",
+    "Industry benchmarks: persistence, climatology, seasonal DOY climatology, and regional API lag-1.",
+    "ThermoSense models trained via scripts/train_models.py on the same holdout split."
+  ]
+}

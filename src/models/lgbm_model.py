@@ -18,9 +18,19 @@ import pandas as pd
 from .base_model import BaseModel
 
 TARGET_COL = "temp_c"
-EXCLUDE_COLS = {TARGET_COL, "date", "location", "time_idx",
-                "app_pred_day1", "app_pred_day2", "app_pred_day3",
-                "api_bias"}
+EXCLUDE_COLS = {
+    TARGET_COL,
+    "date",
+    "location",
+    "time_idx",
+    "app_pred_day1",
+    "app_pred_day2",
+    "app_pred_day3",
+    "api_bias",
+    "source",
+    "is_sensor_reading",
+    "is_gap_filled",
+}
 
 
 class LGBMForecastModel(BaseModel):
@@ -49,7 +59,11 @@ class LGBMForecastModel(BaseModel):
             train_df: Feature DataFrame (output of build_feature_matrix()).
             val_df: Optional validation DataFrame for early stopping.
         """
-        self.feature_cols = [c for c in train_df.columns if c not in EXCLUDE_COLS]
+        self.feature_cols = [
+            c
+            for c in train_df.columns
+            if c not in EXCLUDE_COLS and pd.api.types.is_numeric_dtype(train_df[c])
+        ]
 
         # Shift the target backward to create a forward-looking label for the horizon
         shifted = train_df[TARGET_COL].shift(-self.horizon)
