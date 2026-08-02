@@ -4,7 +4,7 @@
   "functions": {
     "main.py": {
       "maxDuration": 300,
-      "includeFiles": "{config/**,models/**,data/**,src/**}",
+      "includeFiles": "{config/**,models/**,data/**,src/**,public/**}",
       "excludeFiles": "{tests/**,notebooks/**,docs/**,hardware/**,deployment/**,frontend/node_modules/**,**/*.md,.git/**}"
     }
   }

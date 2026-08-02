@@ -131,6 +131,9 @@ After 30 days of observations, this rolling bias becomes a powerful predictive f
 
 ## Live Dashboard
 
+**Production (Vercel):** https://thermosense-black.vercel.app
+
+
 ThermoSense ships with a production-ready React dashboard — not a Jupyter notebook afterthought, but a polished interface for monitoring forecasts, exploring historical data, evaluating models, and running the data pipeline.
 
 <p align="center">
