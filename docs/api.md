@@ -3,9 +3,7 @@
 Interactive docs are also available at `/docs` on a running server
 (e.g. https://thermosense-black.vercel.app/docs).
 
-## API Reference
-
-All endpoints prefixed with `/api`. Interactive docs at `/docs`.
+All endpoints are prefixed with `/api`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|

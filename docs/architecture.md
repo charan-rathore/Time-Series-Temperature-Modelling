@@ -11,7 +11,7 @@ For product overview and setup, see the [main README](../README.md).
 └────────────────────────────────────────────────────────────────────────────────────┘
 
    EDGE LAYER                          CLOUD LAYER                    EXTERNAL APIs
-   (Raspberry Pi)                      (Your Server / Railway)        (Free Services)
+   (Raspberry Pi)                      (Vercel / your server)         (Free Services)
 ┌──────────────────┐               ┌──────────────────────────┐    ┌─────────────────┐
 │                  │               │                          │    │                 │
 │  ┌────────────┐  │   HTTP POST   │  ┌──────────────────┐    │    │  Open-Meteo    │
