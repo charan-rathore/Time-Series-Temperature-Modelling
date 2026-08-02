@@ -102,10 +102,10 @@ For product overview and setup, see the [main README](../README.md).
   5. MODEL TRAINING                                   ▼
   ┌─────────────────────────────────────────────────────────────────────────┐
   │  Three base models + ensemble:                                          │
-  │  • SARIMA(X)  — Time series baseline with exogenous regressors         │
-  │  • LightGBM   — Gradient boosting on full feature matrix               │
-  │  • TFT        — Transformer for attention-based forecasting            │
-  │  • Ensemble   — Ridge meta-learner over OOF predictions                │
+  │  • SARIMA(X)  - Time series baseline with exogenous regressors         │
+  │  • LightGBM   - Gradient boosting on full feature matrix               │
+  │  • TFT        - Transformer for attention-based forecasting            │
+  │  • Ensemble   - Ridge meta-learner over OOF predictions                │
   └─────────────────────────────────────────────────────────────────────────┘
                                                        │
   6. SERVE & COMPARE                                  ▼
@@ -125,12 +125,12 @@ For product overview and setup, see the [main README](../README.md).
 **Production (Vercel):** https://thermosense-black.vercel.app
 
 
-ThermoSense ships with a production-ready React dashboard — not a Jupyter notebook afterthought, but a polished interface for monitoring forecasts, exploring historical data, evaluating models, and running the data pipeline.
+ThermoSense ships with a production-ready React dashboard - not a Jupyter notebook afterthought, but a polished interface for monitoring forecasts, exploring historical data, evaluating models, and running the data pipeline.
 
 <p align="center">
   <img src="docs/images/dashboard-overview.png" alt="ThermoSense Dashboard Overview" width="90%">
   <br>
-  <em>Dashboard — system overview with live 3-day forecast, active model, and key metrics at a glance.</em>
+  <em>Dashboard - system overview with live 3-day forecast, active model, and key metrics at a glance.</em>
 </p>
 
 ### Dashboard Home
@@ -140,12 +140,12 @@ The home screen shows data points loaded, active model, tomorrow's forecast with
 <p align="center">
   <img src="docs/images/dashboard-chart.png" alt="Dashboard temperature chart" width="90%">
   <br>
-  <em>Sensor vs API temperature over 30 days — the consistent gap between the two lines is the local microclimate bias that the model learns to correct.</em>
+  <em>Sensor vs API temperature over 30 days - the consistent gap between the two lines is the local microclimate bias that the model learns to correct.</em>
 </p>
 
 ### Forecast Page
 
-3-day ahead predictions with 90% confidence intervals, served by whichever model currently performs best (ensemble by default). Each value represents the predicted daily temperature at the 9 PM local snapshot — the reference point used throughout the system.
+3-day ahead predictions with 90% confidence intervals, served by whichever model currently performs best (ensemble by default). Each value represents the predicted daily temperature at the 9 PM local snapshot - the reference point used throughout the system.
 
 <p align="center">
   <img src="docs/images/forecast.png" alt="Forecast page" width="90%">
@@ -173,17 +173,17 @@ Head-to-head model comparison across all forecast horizons (Day 1/2/3). Each mod
 <p align="center">
   <img src="docs/images/metrics-table.png" alt="Metrics comparison table" width="90%">
   <br>
-  <em>Full results table — SARIMA, LightGBM, and Ensemble evaluated across 3 horizons. Ensemble achieves Day-1 RMSE of 0.221°C.</em>
+  <em>Full results table - SARIMA, LightGBM, and Ensemble evaluated across 3 horizons. Ensemble achieves Day-1 RMSE of 0.221°C.</em>
 </p>
 
 ### Pipeline Control
 
-One-click data backfill, daily updates, and model training — all from the browser. Select which models to train, toggle MLflow logging, and monitor pipeline logs in real time.
+One-click data backfill, daily updates, and model training - all from the browser. Select which models to train, toggle MLflow logging, and monitor pipeline logs in real time.
 
 <p align="center">
   <img src="docs/images/pipeline.png" alt="Pipeline management" width="90%">
   <br>
-  <em>Pipeline control panel — backfill data, run daily updates, and train models without touching the terminal.</em>
+  <em>Pipeline control panel - backfill data, run daily updates, and train models without touching the terminal.</em>
 </p>
 
 ---
@@ -361,7 +361,7 @@ Output schema:
 │  ├── windspeed_kmh, precip_mm, dewpoint_c                       │
 │  └── solar_radiation_wm2                                        │
 │                                                                 │
-│  ★ API BIAS FEATURES (3) — THE KEY INNOVATION:                  │
+│  ★ API BIAS FEATURES (3) - THE KEY INNOVATION:                  │
 │  ├── api_bias (today's sensor - API difference)                 │
 │  ├── api_bias_roll7_mean (rolling 7-day mean bias)              │
 │  └── api_bias_roll7_std (rolling 7-day bias volatility)         │
@@ -562,12 +562,12 @@ api_bias_roll7_std  = rolling 7-day std of api_bias
 
 ### Why This Works
 
-Open-Meteo's temperature at your lat/lon is interpolated from gridded NWP model output — an average over a ~1 km² cell. Your sensor is a point measurement subject to:
+Open-Meteo's temperature at your lat/lon is interpolated from gridded NWP model output - an average over a ~1 km² cell. Your sensor is a point measurement subject to:
 
-- **Urban heat island** — concrete and asphalt absorb and re-radiate heat
-- **Building geometry** — walls reflect and trap radiation
-- **Local vegetation** — or lack thereof
-- **Elevation micro-differences** — rooftop vs ground-level
+- **Urban heat island** - concrete and asphalt absorb and re-radiate heat
+- **Building geometry** - walls reflect and trap radiation
+- **Local vegetation** - or lack thereof
+- **Elevation micro-differences** - rooftop vs ground-level
 
 This offset is not random. It has:
 - A **systematic component** that varies slowly with season
@@ -579,25 +579,25 @@ The model learns this correction automatically and applies it to future API fore
 
 ## Models in Depth
 
-### SARIMA(X) — `src/models/sarima_model.py`
+### SARIMA(X) - `src/models/sarima_model.py`
 
 - Auto-selects optimal (p,d,q)(P,D,Q,7) order via AIC
 - Exogenous regressors: humidity, pressure
 - Best for capturing weekly seasonality
 
-### LightGBM — `src/models/lgbm_model.py`
+### LightGBM - `src/models/lgbm_model.py`
 
 - One model per horizon (Day 1/2/3)
 - Handles missing values natively
 - SHAP feature importance available
 
-### Temporal Fusion Transformer — `src/models/tft_model.py`
+### Temporal Fusion Transformer - `src/models/tft_model.py`
 
 - Attention-based architecture (Lim et al., 2021)
 - Native quantile outputs (10th/50th/90th percentile)
 - Variable selection networks learn feature importance
 
-### Ensemble Stacker — `src/models/ensemble.py`
+### Ensemble Stacker - `src/models/ensemble.py`
 
 - Ridge regression meta-learner
 - Trained on out-of-fold predictions
@@ -611,12 +611,12 @@ The model learns this correction automatically and applies it to future API fore
 
 | Model | Day-1 RMSE | Day-1 MAE | Day-2 RMSE | Day-3 RMSE | Day-1 Skill |
 |-------|-----------|-----------|-----------|-----------|------------|
-| ARIMA(1,0,0) — original | 1.34°C | 1.0°C | 1.51°C | 1.86°C | — |
+| ARIMA(1,0,0) - original | 1.34°C | 1.0°C | 1.51°C | 1.86°C | - |
 | **SARIMA(X)** | 1.036°C | 1.036°C | 0.806°C | 1.885°C | 1.000 |
 | **LightGBM** | 1.520°C | 1.236°C | 1.354°C | 1.515°C | -0.181 |
 | **Ensemble** | **0.221°C** | **0.221°C** | **0.446°C** | **0.184°C** | **1.000** |
 
-**Key result**: The ensemble stacker (Ridge meta-learner over SARIMA + LightGBM) achieves a **Day-1 RMSE of 0.221°C** — an **84% improvement** over the original ARIMA baseline and a **79% improvement** over SARIMA alone.
+**Key result**: The ensemble stacker (Ridge meta-learner over SARIMA + LightGBM) achieves a **Day-1 RMSE of 0.221°C** - an **84% improvement** over the original ARIMA baseline and a **79% improvement** over SARIMA alone.
 
 ---
 

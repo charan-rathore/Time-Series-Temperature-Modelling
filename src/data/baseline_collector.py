@@ -1,5 +1,5 @@
 """
-Baseline Collector — Fetches daily forecasts from commercial weather APIs
+Baseline Collector - Fetches daily forecasts from commercial weather APIs
 
 This module collects Day-1, Day-2, and Day-3 temperature forecasts from:
 - Open-Meteo (free, already integrated)

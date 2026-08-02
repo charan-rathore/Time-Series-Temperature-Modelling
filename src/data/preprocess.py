@@ -1,9 +1,9 @@
 """
-Data preprocessing for ThermoSense — Phase 1.
+Data preprocessing for ThermoSense - Phase 1.
 
 Responsibilities:
   1. Load the legacy 40-day hand-recorded CSV (existing sensor data).
-  2. Merge it with Open-Meteo API data — sensor readings take precedence
+  2. Merge it with Open-Meteo API data - sensor readings take precedence
      for the overlap window since they are real local measurements.
   3. Detect and fill date gaps via forward-fill (flagging them in a column).
   4. Save the merged, clean DataFrame to data/processed/ as parquet.
@@ -214,8 +214,8 @@ def validate_processed(df: pd.DataFrame) -> None:
         print(f"[preprocess] WARNING: temp_c range {temp_range} looks unusual for India.")
 
     n_sensor = df.get("is_sensor_reading", pd.Series(dtype=bool)).sum()
-    print(f"[preprocess] Validation passed — {len(df)} rows, "
-          f"{n_sensor} sensor readings, temp range {temp_range[0]:.1f}–{temp_range[1]:.1f}°C")
+    print(f"[preprocess] Validation passed - {len(df)} rows, "
+          f"{n_sensor} sensor readings, temp range {temp_range[0]:.1f}-{temp_range[1]:.1f}°C")
 
 
 def save_processed(df: pd.DataFrame, output_path: Optional[str] = None) -> Path:

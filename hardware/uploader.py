@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ThermoSense Uploader — Syncs sensor readings to cloud API
+ThermoSense Uploader - Syncs sensor readings to cloud API
 
 Periodically fetches unsynced readings from the local sensor database
 and uploads them to the ThermoSense cloud API. Handles network failures

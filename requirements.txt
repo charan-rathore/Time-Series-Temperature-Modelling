@@ -6,7 +6,7 @@ numpy>=2.0.0
 scipy>=1.14.0
 pyarrow>=14.0.0
 
-# Time series — statistical models
+# Time series - statistical models
 statsmodels>=0.14.0
 pmdarima>=2.0.4
 

@@ -130,7 +130,7 @@ export default function History() {
                       return `${parts[2]}-${parts[1]}-${parts[0]}`;
                     }}
                     formatter={(value, name) => {
-                      if (value == null) return ['—', name];
+                      if (value == null) return ['-', name];
                       return [`${value}°C`, name];
                     }}
                   />
@@ -197,7 +197,7 @@ export default function History() {
                       return `${parts[2]}-${parts[1]}-${parts[0]}`;
                     }}
                     formatter={(value, name) => {
-                      if (value == null) return ['—', name];
+                      if (value == null) return ['-', name];
                       if (name.includes('Humidity')) return [`${value}%`, name];
                       if (name.includes('Pressure')) return [`${value} hPa`, name];
                       return [value, name];
@@ -240,14 +240,14 @@ export default function History() {
                 <tbody>
                   {(data?.records || []).slice(-50).reverse().map(r => (
                     <tr key={r.date}>
-                      <td className="mono">{r.date ? (() => { const [y, m, d] = r.date.split('-'); return `${d}-${m}-${y}`; })() : '—'}</td>
-                      <td className="mono">{r.actual_temp_c ?? '—'}</td>
-                      <td className="mono">{r.api_temp_c ?? '—'}</td>
+                      <td className="mono">{r.date ? (() => { const [y, m, d] = r.date.split('-'); return `${d}-${m}-${y}`; })() : '-'}</td>
+                      <td className="mono">{r.actual_temp_c ?? '-'}</td>
+                      <td className="mono">{r.api_temp_c ?? '-'}</td>
                       <td className="mono" style={{ color: r.api_bias > 0 ? 'var(--danger)' : r.api_bias < 0 ? 'var(--accent)' : undefined }}>
-                        {r.api_bias != null ? (r.api_bias > 0 ? '+' : '') + r.api_bias.toFixed(2) : '—'}
+                        {r.api_bias != null ? (r.api_bias > 0 ? '+' : '') + r.api_bias.toFixed(2) : '-'}
                       </td>
-                      <td className="mono">{r.humidity_pct ?? '—'}</td>
-                      <td className="mono">{r.pressure_hpa ?? '—'}</td>
+                      <td className="mono">{r.humidity_pct ?? '-'}</td>
+                      <td className="mono">{r.pressure_hpa ?? '-'}</td>
                       <td>
                         <span className={`badge ${r.is_sensor_reading ? 'badge-success' : 'badge-info'}`}>
                           {r.is_sensor_reading ? 'Sensor' : 'API'}

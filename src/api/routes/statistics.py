@@ -1,5 +1,5 @@
 """
-Statistics API routes — Statistical validation of forecast comparisons
+Statistics API routes - Statistical validation of forecast comparisons
 
 Provides rigorous statistical testing to validate claims like
 "ThermoSense beats Google Weather by X%".

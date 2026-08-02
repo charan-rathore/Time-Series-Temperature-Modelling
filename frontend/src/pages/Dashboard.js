@@ -83,7 +83,7 @@ export default function Dashboard({ onNavigate }) {
       <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h2>Dashboard</h2>
-          <p>ThermoSense system overview — {formatDateRange(status?.data_date_range)}</p>
+          <p>ThermoSense system overview - {formatDateRange(status?.data_date_range)}</p>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={load}><RefreshCw /> Refresh</button>
       </div>
@@ -95,7 +95,7 @@ export default function Dashboard({ onNavigate }) {
             <div className="stat-icon blue"><Database /></div>
           </div>
           <div className="stat-value">{status?.data_rows?.toLocaleString() || 0}</div>
-          <div className="stat-label">{status?.data_available ? 'Dataset loaded' : 'No data — run backfill'}</div>
+          <div className="stat-label">{status?.data_available ? 'Dataset loaded' : 'No data - run backfill'}</div>
         </div>
 
         <div className="card">
@@ -117,11 +117,11 @@ export default function Dashboard({ onNavigate }) {
           <div className="stat-value">
             {forecast?.forecasts?.[0]?.predicted_temp_c
               ? `${forecast.forecasts[0].predicted_temp_c}°C`
-              : '—'}
+              : '-'}
           </div>
           <div className="stat-label">
             {forecast?.forecasts?.[0]
-              ? `${forecast.forecasts[0].lower_bound_c}° – ${forecast.forecasts[0].upper_bound_c}°C range`
+              ? `${forecast.forecasts[0].lower_bound_c}° - ${forecast.forecasts[0].upper_bound_c}°C range`
               : 'No forecast available'}
           </div>
           <div className="info-hint">
@@ -140,7 +140,7 @@ export default function Dashboard({ onNavigate }) {
               ? `${status.last_training_results.ensemble.day1.rmse.toFixed(3)}°C`
               : status?.last_training_results?.lgbm?.day1?.rmse
                 ? `${status.last_training_results.lgbm.day1.rmse.toFixed(3)}°C`
-                : '—'}
+                : '-'}
           </div>
           <div className="stat-label">Root mean squared error</div>
           <div className="info-hint">
@@ -155,7 +155,7 @@ export default function Dashboard({ onNavigate }) {
         <div className="card" style={{ marginBottom: 24, cursor: 'pointer' }} onClick={() => onNavigate('forecast')}>
           <div className="card-header">
             <span className="card-title"><CloudSun style={{ width: 14, height: 14, marginRight: 6, verticalAlign: -2 }} />
-              3-Day Forecast — {forecast.model_used}</span>
+              3-Day Forecast - {forecast.model_used}</span>
             <span style={{ fontSize: '0.78rem', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4 }}>
               View details <ArrowRight style={{ width: 14 }} />
             </span>
@@ -173,7 +173,7 @@ export default function Dashboard({ onNavigate }) {
                   <div className="forecast-day">Day {f.horizon_days}</div>
                   <div className="forecast-date">{fmtDate}</div>
                   <div className="forecast-temp">{f.predicted_temp_c}°</div>
-                  <div className="forecast-range">{f.lower_bound_c}° – {f.upper_bound_c}°C</div>
+                  <div className="forecast-range">{f.lower_bound_c}° - {f.upper_bound_c}°C</div>
                 </div>
               );
             })}
@@ -185,7 +185,7 @@ export default function Dashboard({ onNavigate }) {
       {chartData.length > 0 && (
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Temperature — Last 30 Days</span>
+            <span className="card-title">Temperature - Last 30 Days</span>
           </div>
           <p className="chart-description">
             Comparison of two temperature sources over the last 30 days.{' '}

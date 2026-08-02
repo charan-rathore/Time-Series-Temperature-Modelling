@@ -23,7 +23,7 @@ class EnsembleStacker(BaseModel):
     Level-1 meta-learner over SARIMA, LightGBM, and TFT.
 
     Trained on out-of-fold (OOF) predictions so the meta-learner never
-    sees predictions made on data it was also trained on — preventing
+    sees predictions made on data it was also trained on - preventing
     overfitting at the ensemble level.
 
     Separate meta-models per forecast horizon (Day 1, Day 2, Day 3).
@@ -35,7 +35,7 @@ class EnsembleStacker(BaseModel):
         self.base_model_names: List[str] = config.get("base_models", ["sarima", "lgbm", "tft"])
 
     def fit(self, train_df: pd.DataFrame, **kwargs) -> None:
-        """Not used — ensemble trains via fit_from_oof(). This satisfies the ABC."""
+        """Not used - ensemble trains via fit_from_oof(). This satisfies the ABC."""
         raise NotImplementedError("Use fit_from_oof() instead for ensemble training.")
 
     def fit_from_oof(
@@ -64,7 +64,7 @@ class EnsembleStacker(BaseModel):
             meta = Ridge(alpha=self.config.get("alpha", 1.0))
             meta.fit(X_meta, y_meta)
             self.meta_models[h] = meta
-            print(f"[Ensemble] Horizon={h} — meta-model weights: {meta.coef_}")
+            print(f"[Ensemble] Horizon={h} - meta-model weights: {meta.coef_}")
 
         self.is_fitted = True
 

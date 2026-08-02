@@ -1,12 +1,12 @@
 """
-Data fetcher for ThermoSense — Phase 1.
+Data fetcher for ThermoSense - Phase 1.
 
 Pulls historical and forecast weather data from Open-Meteo (completely free,
 no API key required) and optionally from OpenWeatherMap (free tier) for a
 commercial-app baseline comparison.
 
 Design principles:
-- All API keys are loaded from environment variables only — never hardcoded.
+- All API keys are loaded from environment variables only - never hardcoded.
 - Raw JSON responses are saved to data/raw/ before any parsing, making the
   pipeline fully reproducible and debuggable.
 - Exponential-backoff retry wraps every network call so transient errors
@@ -45,7 +45,7 @@ HOURLY_VARS: List[str] = [
     "pressure_msl",
     "cloudcover",
     "windspeed_10m",
-    "shortwave_radiation",   # UV proxy — uv_index is not stored in the archive
+    "shortwave_radiation",   # UV proxy - uv_index is not stored in the archive
 ]
 
 COL_RENAME: Dict[str, str] = {
@@ -133,7 +133,7 @@ def _resample_to_9pm(hourly_df: pd.DataFrame) -> pd.DataFrame:
     Filter hourly data to the 21:00 (9 PM) row for each date.
 
     This matches the original dataset's recording convention (readings taken
-    between 9–10 PM each evening). Using a single fixed snapshot per day
+    between 9-10 PM each evening). Using a single fixed snapshot per day
     makes the merged dataframe directly comparable with the legacy CSV.
     """
     mask = hourly_df.index.hour == 21
@@ -226,7 +226,7 @@ def fetch_forecast_open_meteo(
     Args:
         lat: Latitude. Defaults to config location.
         lon: Longitude. Defaults to config location.
-        forecast_days: Number of forecast days (1–16).
+        forecast_days: Number of forecast days (1-16).
         timezone: IANA timezone string. Defaults to config timezone.
         save_raw: Whether to persist the raw JSON response.
 
@@ -269,11 +269,11 @@ def fetch_owm_current(
     """
     Fetch current conditions from OpenWeatherMap (free tier).
 
-    Used only as a commercial-app baseline for comparison — to measure how much
+    Used only as a commercial-app baseline for comparison - to measure how much
     our TFT ensemble outperforms raw public weather data at our specific location.
 
     Requires OWM_API_KEY environment variable (free key from openweathermap.org).
-    Returns None gracefully if the key is not set — Open-Meteo is sufficient
+    Returns None gracefully if the key is not set - Open-Meteo is sufficient
     for all forecasting functionality.
 
     Args:

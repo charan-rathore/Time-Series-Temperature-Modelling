@@ -92,7 +92,7 @@ class LGBMForecastModel(BaseModel):
             self.model = lgb.train(params, train_set)
 
         self.is_fitted = True
-        print(f"[LightGBM] Horizon={self.horizon} — best iteration: {self.model.best_iteration}")
+        print(f"[LightGBM] Horizon={self.horizon} - best iteration: {self.model.best_iteration}")
 
     def predict(
         self,

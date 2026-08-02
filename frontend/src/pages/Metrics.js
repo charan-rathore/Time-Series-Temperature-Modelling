@@ -135,7 +135,7 @@ export default function Metrics() {
           <div>
             <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Best Model: {bestModel.name}</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Day-1 RMSE: {bestModel.rmse.toFixed(4)}°C — lowest next-day prediction error on test data
+              Day-1 RMSE: {bestModel.rmse.toFixed(4)}°C - lowest next-day prediction error on test data
             </div>
           </div>
         </div>
@@ -161,7 +161,7 @@ export default function Metrics() {
                     background: MODEL_COLORS[name] || '#3b82f6',
                   }} />
                 </div>
-                <span className="metric-bar-value">{d1.mae?.toFixed(3) ?? '—'}°C</span>
+                <span className="metric-bar-value">{d1.mae?.toFixed(3) ?? '-'}°C</span>
               </div>
               <div className="metric-bar">
                 <span className="metric-bar-label" title={METRIC_DEFS.RMSE.desc}>RMSE</span>
@@ -171,7 +171,7 @@ export default function Metrics() {
                     background: MODEL_COLORS[name] || '#3b82f6',
                   }} />
                 </div>
-                <span className="metric-bar-value">{d1.rmse?.toFixed(3) ?? '—'}°C</span>
+                <span className="metric-bar-value">{d1.rmse?.toFixed(3) ?? '-'}°C</span>
               </div>
               <div className="metric-bar">
                 <span className="metric-bar-label" title={METRIC_DEFS.MAPE.desc}>MAPE</span>
@@ -181,7 +181,7 @@ export default function Metrics() {
                     background: MODEL_COLORS[name] || '#3b82f6',
                   }} />
                 </div>
-                <span className="metric-bar-value">{d1.mape?.toFixed(2) ?? '—'}%</span>
+                <span className="metric-bar-value">{d1.mape?.toFixed(2) ?? '-'}%</span>
               </div>
               <div className="metric-bar">
                 <span className="metric-bar-label" title={METRIC_DEFS.Skill.desc}>Skill</span>
@@ -191,7 +191,7 @@ export default function Metrics() {
                     background: (d1.skill_score || 0) > 0 ? 'var(--success)' : 'var(--danger)',
                   }} />
                 </div>
-                <span className="metric-bar-value">{d1.skill_score?.toFixed(3) ?? '—'}</span>
+                <span className="metric-bar-value">{d1.skill_score?.toFixed(3) ?? '-'}</span>
               </div>
             </div>
           );
@@ -266,7 +266,7 @@ export default function Metrics() {
         <div className="card" style={{ marginTop: 24 }}>
           <div className="card-header"><span className="card-title">Model Comparison Radar (Day-1)</span></div>
           <p className="chart-description">
-            Normalised Day-1 scores on a 0–100 scale (higher = better). For MAE/RMSE/MAPE, 
+            Normalised Day-1 scores on a 0-100 scale (higher = better). For MAE/RMSE/MAPE, 
             the value is inverted so that lower error appears as a higher score. Allows quick visual 
             comparison of model strengths across different criteria.
           </p>
@@ -328,7 +328,7 @@ export default function Metrics() {
                       <td className="mono">{m.rmse?.toFixed(4)}</td>
                       <td className="mono">{m.mape?.toFixed(2)}</td>
                       <td className="mono">{m.skill_score?.toFixed(4)}</td>
-                      <td className="mono">{m.coverage_90pct != null ? (m.coverage_90pct * 100).toFixed(1) + '%' : '—'}</td>
+                      <td className="mono">{m.coverage_90pct != null ? (m.coverage_90pct * 100).toFixed(1) + '%' : '-'}</td>
                     </tr>
                   );
                 })

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ThermoSense — Data Pipeline CLI (Phase 1)
+ThermoSense - Data Pipeline CLI (Phase 1)
 
 This script is the main entry point for running the data ingestion and
 preprocessing pipeline. It supports two operating modes:
@@ -55,7 +55,7 @@ def cmd_backfill(args: argparse.Namespace) -> None:
     fills gaps, validates, and saves to data/processed/daily_merged.parquet.
     """
     print("=" * 60)
-    print("  ThermoSense — BACKFILL mode")
+    print("  ThermoSense - BACKFILL mode")
     print("=" * 60)
 
     api_df = backfill(
@@ -89,7 +89,7 @@ def cmd_daily(args: argparse.Namespace) -> None:
     existing processed DataFrame, and pulls a fresh 7-day forecast.
     """
     print("=" * 60)
-    print("  ThermoSense — DAILY update mode")
+    print("  ThermoSense - DAILY update mode")
     print("=" * 60)
 
     processed_path = _PROJECT_ROOT / "data" / "processed" / "daily_merged.parquet"

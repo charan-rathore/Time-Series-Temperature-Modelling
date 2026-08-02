@@ -1,5 +1,5 @@
 """
-Sensor API routes — Receive and store readings from the Raspberry Pi sensor
+Sensor API routes - Receive and store readings from the Raspberry Pi sensor
 
 Endpoints:
     POST /api/sensor/readings  - Upload batch of sensor readings

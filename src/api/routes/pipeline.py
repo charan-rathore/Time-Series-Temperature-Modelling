@@ -1,12 +1,12 @@
 """
 Pipeline & training control endpoints for ThermoSense API.
 
-POST /pipeline/backfill   — Run the data backfill pipeline
-POST /pipeline/daily      — Run the daily incremental update
-POST /pipeline/train      — Train models
-GET  /pipeline/status     — Get system status (data, models, etc.)
-GET  /pipeline/logs       — Stream recent log output
-GET  /pipeline/mlflow     — Get MLflow experiment runs
+POST /pipeline/backfill   - Run the data backfill pipeline
+POST /pipeline/daily      - Run the daily incremental update
+POST /pipeline/train      - Train models
+GET  /pipeline/status     - Get system status (data, models, etc.)
+GET  /pipeline/logs       - Stream recent log output
+GET  /pipeline/mlflow     - Get MLflow experiment runs
 """
 
 from __future__ import annotations

@@ -16,7 +16,7 @@ def mae(actuals: np.ndarray, predictions: np.ndarray) -> float:
 
 
 def rmse(actuals: np.ndarray, predictions: np.ndarray) -> float:
-    """Root Mean Squared Error — penalises large errors more than MAE."""
+    """Root Mean Squared Error - penalises large errors more than MAE."""
     return float(np.sqrt(np.mean((actuals - predictions) ** 2)))
 
 

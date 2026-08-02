@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ThermoSense Sensor Daemon — Raspberry Pi + DHT22
+ThermoSense Sensor Daemon - Raspberry Pi + DHT22
 
 Continuously reads temperature and humidity from a DHT22 sensor,
 stores readings in a local SQLite database, and exposes a simple

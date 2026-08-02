@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="ThermoSense — Hyperlocal Temperature Intelligence",
+    title="ThermoSense - Hyperlocal Temperature Intelligence",
     description=(
         "REST API for real-time temperature forecasting using SARIMA(X), "
         "LightGBM, and ensemble stacking models. "

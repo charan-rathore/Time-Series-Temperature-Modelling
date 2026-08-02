@@ -49,7 +49,7 @@ def add_calendar_features(df: pd.DataFrame, date_col: str = "date") -> pd.DataFr
     df["day_of_week"] = dates.dt.dayofweek
     df["is_monsoon"] = dates.dt.month.isin(MONSOON_MONTHS).astype(int)
 
-    # Cyclic encoding — avoids the discontinuity at Dec 31 / Jan 1
+    # Cyclic encoding - avoids the discontinuity at Dec 31 / Jan 1
     df["day_sin"] = np.sin(2 * np.pi * df["day_of_year"] / 365)
     df["day_cos"] = np.cos(2 * np.pi * df["day_of_year"] / 365)
     df["month_sin"] = np.sin(2 * np.pi * df["month"] / 12)

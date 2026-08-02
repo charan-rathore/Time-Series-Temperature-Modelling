@@ -1,5 +1,5 @@
 """
-Leaderboard API routes — Live accuracy comparison against commercial weather services
+Leaderboard API routes - Live accuracy comparison against commercial weather services
 
 Endpoints:
     GET  /api/leaderboard           - Get accuracy rankings

@@ -1,4 +1,4 @@
-# ThermoSense Hardware — Raspberry Pi Sensor Setup
+# ThermoSense Hardware - Raspberry Pi Sensor Setup
 
 This directory contains code for deploying a real temperature/humidity sensor using a Raspberry Pi and DHT22.
 
@@ -132,7 +132,7 @@ python3 sensor_daemon.py --simulate
 
 ### "Failed to read sensor"
 
-1. Check wiring — data pin should be on GPIO4
+1. Check wiring - data pin should be on GPIO4
 2. Verify sensor power (3.3V or 5V)
 3. Try adding a 10kΩ pull-up resistor
 4. Run `gpio readall` to check GPIO status

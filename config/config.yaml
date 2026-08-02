@@ -1,6 +1,6 @@
 # ── ThermoSense Configuration ─────────────────────────────────────────────────
 # All tunable parameters live here.
-# Secrets (API keys, etc.) live in .env — never here.
+# Secrets (API keys, etc.) live in .env - never here.
 
 location:
   name: "Bangalore"
@@ -72,7 +72,7 @@ features:
       period: 365
     - col: "month"
       period: 12
-  monsoon_months: [6, 7, 8, 9]   # June–September
+  monsoon_months: [6, 7, 8, 9]   # June-September
 
 models:
   sarima:

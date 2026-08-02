@@ -140,7 +140,7 @@ railway up
 ```
 
 ### Render
-Push to GitHub — auto-deploys on merge to main.
+Push to GitHub - auto-deploys on merge to main.
 
 ### Docker
 ```bash

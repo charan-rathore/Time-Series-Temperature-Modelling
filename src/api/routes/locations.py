@@ -1,5 +1,5 @@
 """
-Locations API routes — Multi-location sensor network management
+Locations API routes - Multi-location sensor network management
 
 Supports Phase F expansion to multiple sensor locations with
 location-specific bias corrections and aggregated analytics.

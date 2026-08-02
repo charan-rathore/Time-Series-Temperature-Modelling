@@ -5,7 +5,7 @@ Upgrades the original ARIMA(1,0,0) to a seasonal ARIMA with exogenous variables
 (humidity, pressure). Auto-selects order via AIC using pmdarima.
 
 Reference baseline for comparison: ARIMA(1,0,0) → RMSE ~0.87°C (37-day dataset).
-Target for SARIMAX with exogenous features: RMSE ~0.6–0.7°C.
+Target for SARIMAX with exogenous features: RMSE ~0.6-0.7°C.
 """
 
 import pickle

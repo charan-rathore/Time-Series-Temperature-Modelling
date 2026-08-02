@@ -1,7 +1,7 @@
 """
 Tests for src/data/fetcher.py
 
-All network calls are mocked — tests run offline without real API requests.
+All network calls are mocked - tests run offline without real API requests.
 Covers: response parsing, 9 PM resampling, retry logic, and raw file saving.
 """
 
@@ -85,7 +85,7 @@ def test_resample_to_9pm_picks_hour_21():
 
 
 def test_resample_to_9pm_no_9pm_data_returns_empty():
-    times = pd.date_range("2024-06-01 08:00", periods=8, freq="h")  # hours 8–15
+    times = pd.date_range("2024-06-01 08:00", periods=8, freq="h")  # hours 8-15
     hourly = pd.DataFrame({"temp_c": [0] * 8}, index=times)
 
     daily = _resample_to_9pm(hourly)
@@ -132,7 +132,7 @@ def test_fetch_historical_uses_config_defaults(mock_get, mock_save):
     mock_get.return_value = _make_open_meteo_payload(n_days=1)
     mock_save.return_value = Path("/tmp/test.json")
 
-    # Call without lat/lon — should use config defaults without error
+    # Call without lat/lon - should use config defaults without error
     df = fetch_historical_open_meteo(start_date="2024-06-01", end_date="2024-06-01")
     assert mock_get.called
     _, call_kwargs = mock_get.call_args

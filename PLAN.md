@@ -121,7 +121,7 @@ def store_reading(reading, db_path="readings.db"):
 **Deployment location**: Place the sensor:
 - Outdoors but sheltered (balcony, porch, under an eave)
 - Away from direct sunlight and heat sources
-- At a height of 1.5–2m (standard meteorological convention)
+- At a height of 1.5-2m (standard meteorological convention)
 - Note exact GPS coordinates for Open-Meteo comparison
 
 #### Option 2: Use a Weather Station with API (No Hardware)
@@ -264,7 +264,7 @@ To claim "ThermoSense beats commercial apps", you need:
 
 1. **At least 30 days** of parallel forecasts (statistical minimum for t-test)
 2. **Paired t-test** or Wilcoxon signed-rank test comparing daily errors
-3. **Confidence interval** on the improvement (e.g., "ThermoSense RMSE is 0.4–0.8°C lower than Google, p < 0.01")
+3. **Confidence interval** on the improvement (e.g., "ThermoSense RMSE is 0.4-0.8°C lower than Google, p < 0.01")
 4. **Effect size** (Cohen's d) to show the improvement is practically meaningful
 
 **Implementation** (`src/evaluation/statistical_tests.py`):
@@ -464,7 +464,7 @@ After completing this transformation, you can write:
 
 ### Strong (After Transformation)
 
-> **ThermoSense — Hyperlocal Weather Intelligence System**
+> **ThermoSense - Hyperlocal Weather Intelligence System**
 > - Deployed an IoT sensor network (Raspberry Pi + DHT22) to collect real-time temperature data from 3 locations
 > - Developed an ensemble ML model (SARIMA + LightGBM + TFT) achieving **45% lower RMSE** than Google Weather on Day-1 forecasts (p < 0.01, n=90 days)
 > - Built a public live leaderboard comparing ThermoSense vs 4 commercial weather services, updated daily
@@ -560,15 +560,15 @@ If you cannot do the full transformation, here are partial improvements ranked b
 
 ### Anti-Patterns to Avoid
 
-1. **Don't keep adding features to the dashboard** — shipping beats polishing.
+1. **Don't keep adding features to the dashboard** - shipping beats polishing.
 
-2. **Don't train more models** — you have enough models. The bottleneck is real data, not model architectur.
+2. **Don't train more models** - you have enough models. The bottleneck is real data, not model architectur.
 
-3. **Don't optimize for RMSE on synthetic data** — the current 0.221°C is meaningless without real sensor validation.
+3. **Don't optimize for RMSE on synthetic data** - the current 0.221°C is meaningless without real sensor validation.
 
-4. **Don't claim "beats commercial apps" without evidence** — your README says "84% improvement" but this is against your own ARIMA baseline, not Google.
+4. **Don't claim "beats commercial apps" without evidence** - your README says "84% improvement" but this is against your own ARIMA baseline, not Google.
 
-5. **Don't over-engineer the hardware** — a simple DHT22 on a breadboard is enough. You're not building a production weather station.
+5. **Don't over-engineer the hardware** - a simple DHT22 on a breadboard is enough. You're not building a production weather station.
 
 ---
 
@@ -590,7 +590,7 @@ If any of these are missing, your claims are **unverifiable** and a savvy interv
 
 ## Conclusion
 
-This project has excellent bones — the ML pipeline, feature engineering, and dashboard are genuinely well-built. But right now it's a **demo**, not a **solution**.
+This project has excellent bones - the ML pipeline, feature engineering, and dashboard are genuinely well-built. But right now it's a **demo**, not a **solution**.
 
 The transformation from "impressive tech demo" to "impactful project" requires:
 
@@ -601,7 +601,7 @@ The transformation from "impressive tech demo" to "impactful project" requires:
 
 Complete these, and you'll have one of the strongest ML projects in any portfolio. The hardware cost is ~$25 and the time investment is 4-6 weeks of part-time work.
 
-The question isn't whether you *can* build a system that beats Google Weather for your specific location — you almost certainly can, because microclimate bias is real. The question is whether you'll do the work to *prove* it.
+The question isn't whether you *can* build a system that beats Google Weather for your specific location - you almost certainly can, because microclimate bias is real. The question is whether you'll do the work to *prove* it.
 
 ---
 

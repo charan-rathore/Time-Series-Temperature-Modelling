@@ -1,4 +1,4 @@
-"""Vercel entrypoint — re-exports the FastAPI app for zero-config detection."""
+"""Vercel entrypoint - re-exports the FastAPI app for zero-config detection."""
 
 from src.api.main import app
 

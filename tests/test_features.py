@@ -1,4 +1,4 @@
-"""Tests for feature engineering — verifies no data leakage and correct shapes."""
+"""Tests for feature engineering - verifies no data leakage and correct shapes."""
 
 import numpy as np
 import pandas as pd
@@ -41,7 +41,7 @@ def test_lag_features_no_leakage():
 def test_rolling_features_no_leakage():
     df = make_sample_df()
     df = add_rolling_features(df, col="temp_c", windows=[3])
-    # Rolling features use shift(1) — row 0 should be NaN
+    # Rolling features use shift(1) - row 0 should be NaN
     assert pd.isna(df["temp_c_roll3_mean"].iloc[0])
 
 

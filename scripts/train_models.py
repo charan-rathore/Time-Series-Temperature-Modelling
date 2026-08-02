@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ThermoSense — Model Training & Evaluation Pipeline
+ThermoSense - Model Training & Evaluation Pipeline
 
 Trains all models (SARIMA, LightGBM, TFT, Ensemble) on the processed data,
 evaluates them with time-series cross-validation, logs results to MLflow,
@@ -413,7 +413,7 @@ def main():
         args.models.remove("tft")
 
     print("=" * 60)
-    print("  ThermoSense — Model Training Pipeline")
+    print("  ThermoSense - Model Training Pipeline")
     print(f"  Models: {', '.join(args.models)}")
     print(f"  Time: {datetime.now().isoformat()}")
     print("=" * 60)

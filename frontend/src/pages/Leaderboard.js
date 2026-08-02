@@ -248,7 +248,7 @@ export default function Leaderboard() {
             <div className="stat-icon green"><Trophy /></div>
           </div>
           <div className="stat-value" style={{ color: thermosenseEntry?.rank === 1 ? 'var(--success)' : 'inherit' }}>
-            #{thermosenseEntry?.rank || '—'}
+            #{thermosenseEntry?.rank || '-'}
           </div>
           <div className="stat-label">of {data.rankings.length} forecasters</div>
         </div>
@@ -258,7 +258,7 @@ export default function Leaderboard() {
             <span className="card-title">ThermoSense RMSE</span>
             <div className="stat-icon blue"><Target /></div>
           </div>
-          <div className="stat-value">{thermosenseEntry?.rmse?.toFixed(3) || '—'}°C</div>
+          <div className="stat-value">{thermosenseEntry?.rmse?.toFixed(3) || '-'}°C</div>
           <div className="stat-label">Day-{horizon} prediction error</div>
         </div>
 
@@ -499,7 +499,7 @@ export default function Leaderboard() {
                     {SOURCE_NAMES[source] || source}
                   </td>
                   <td className="mono" style={{ fontSize: '0.8rem' }}>
-                    {info.last_collected ? new Date(info.last_collected).toLocaleString() : '—'}
+                    {info.last_collected ? new Date(info.last_collected).toLocaleString() : '-'}
                   </td>
                   <td className="mono" style={{ color: 'var(--success)' }}>{info.successes}</td>
                   <td className="mono" style={{ color: info.failures > 0 ? 'var(--danger)' : 'inherit' }}>

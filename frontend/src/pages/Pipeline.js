@@ -125,7 +125,7 @@ export default function Pipeline() {
     : 2;
 
   const formatRunTime = (startStr, endStr) => {
-    if (!startStr) return '—';
+    if (!startStr) return '-';
     try {
       const start = new Date(startStr);
       const dateStr = start.toLocaleDateString();
@@ -365,7 +365,7 @@ export default function Pipeline() {
                             </div>
                           </td>
                           <td>
-                            <span className="badge badge-info">{run.model || run.params?.model || '—'}</span>
+                            <span className="badge badge-info">{run.model || run.params?.model || '-'}</span>
                           </td>
                           <td>
                             <span className={`badge ${run.status === 'FINISHED' ? 'badge-success' : run.status === 'FAILED' ? 'badge-danger' : 'badge-warning'}`}>
@@ -376,10 +376,10 @@ export default function Pipeline() {
                             <Clock style={{ width: 11, height: 11, marginRight: 4, verticalAlign: -1 }} />
                             {formatRunTime(run.start_time, run.end_time)}
                           </td>
-                          <td className="mono">{run.metrics?.day1_rmse?.toFixed(4) ?? '—'}</td>
-                          <td className="mono">{run.metrics?.day1_mae?.toFixed(4) ?? '—'}</td>
-                          <td className="mono">{run.metrics?.day2_rmse?.toFixed(4) ?? '—'}</td>
-                          <td className="mono">{run.metrics?.day3_rmse?.toFixed(4) ?? '—'}</td>
+                          <td className="mono">{run.metrics?.day1_rmse?.toFixed(4) ?? '-'}</td>
+                          <td className="mono">{run.metrics?.day1_mae?.toFixed(4) ?? '-'}</td>
+                          <td className="mono">{run.metrics?.day2_rmse?.toFixed(4) ?? '-'}</td>
+                          <td className="mono">{run.metrics?.day3_rmse?.toFixed(4) ?? '-'}</td>
                         </tr>
                         {isExpanded && (
                           <tr className="mlflow-detail-row">
@@ -428,11 +428,11 @@ export default function Pipeline() {
                                     </div>
                                     <div className="mlflow-kv">
                                       <span className="mlflow-kv-key">Started</span>
-                                      <span className="mlflow-kv-val">{run.start_time ? new Date(run.start_time).toLocaleString() : '—'}</span>
+                                      <span className="mlflow-kv-val">{run.start_time ? new Date(run.start_time).toLocaleString() : '-'}</span>
                                     </div>
                                     <div className="mlflow-kv">
                                       <span className="mlflow-kv-key">Finished</span>
-                                      <span className="mlflow-kv-val">{run.end_time ? new Date(run.end_time).toLocaleString() : '—'}</span>
+                                      <span className="mlflow-kv-val">{run.end_time ? new Date(run.end_time).toLocaleString() : '-'}</span>
                                     </div>
                                   </div>
                                 </div>

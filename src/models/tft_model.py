@@ -9,7 +9,7 @@ Reference: Lim et al. (2021), "Temporal Fusion Transformers for Interpretable
 Multi-horizon Time Series Forecasting", International Journal of Forecasting.
 arXiv: 1912.09363
 
-Expected performance: Day-1 RMSE ~0.5°C — best among all single models.
+Expected performance: Day-1 RMSE ~0.5°C - best among all single models.
 """
 
 from __future__ import annotations
@@ -180,7 +180,7 @@ class TFTModel(BaseModel):
     ) -> Dict[str, np.ndarray]:
         """
         Return quantile predictions: lower (10%), median (50%), upper (90%).
-        This is TFT's key advantage — calibrated uncertainty without post-hoc fitting.
+        This is TFT's key advantage - calibrated uncertainty without post-hoc fitting.
         """
         if not self.is_fitted or self.model is None:
             raise RuntimeError("Model must be fitted before calling predict_intervals().")

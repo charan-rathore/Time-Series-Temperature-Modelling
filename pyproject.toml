@@ -1,7 +1,7 @@
 [project]
 name = "thermosense"
 version = "2.0.0"
-description = "Hyperlocal temperature intelligence — FastAPI + React dashboard"
+description = "Hyperlocal temperature intelligence - FastAPI + React dashboard"
 requires-python = ">=3.11"
 # Vercel runtime deps. LightGBM is omitted here: its native libgomp is unavailable
 # on the Vercel Python image. Full local/Docker install still uses requirements.txt.

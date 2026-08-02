@@ -1,6 +1,6 @@
 # ThermoSense
 
-**Hyperlocal temperature forecasts for your exact location — not the nearest weather station.**
+**Hyperlocal temperature forecasts for your exact location - not the nearest weather station.**
 
 Live dashboard: [thermosense-black.vercel.app](https://thermosense-black.vercel.app)
 
@@ -8,7 +8,7 @@ Live dashboard: [thermosense-black.vercel.app](https://thermosense-black.vercel.
 
 ## Why this project exists
 
-Commercial weather apps (Google Weather, AccuWeather, OpenWeatherMap, and similar) do not measure temperature at your balcony, courtyard, or rooftop. They report a value from a regional model or the nearest official station — often kilometers away, at a different elevation, and in a different microclimate.
+Commercial weather apps (Google Weather, AccuWeather, OpenWeatherMap, and similar) do not measure temperature at your balcony, courtyard, or rooftop. They report a value from a regional model or the nearest official station - often kilometers away, at a different elevation, and in a different microclimate.
 
 That gap is usually systematic, not random. Urban heat islands, building geometry, vegetation, and local humidity create a persistent offset between “the app” and what you actually feel. ThermoSense exists to measure that offset at your location and correct for it.
 
@@ -44,7 +44,7 @@ Deeper system design, data lifecycle, models, and API surface live in:
 | Black-box apps | Trainable models (SARIMA, LightGBM, ensemble) you control and retrain |
 | No feedback path | Dashboard feedback + continuous daily pipeline |
 
-**Clear advantage:** instead of trusting a grid-cell average, ThermoSense learns the bias between commercial APIs and your location, then applies that correction going forward — and shows the scoreboard so you can verify the improvement.
+**Clear advantage:** instead of trusting a grid-cell average, ThermoSense learns the bias between commercial APIs and your location, then applies that correction going forward - and shows the scoreboard so you can verify the improvement.
 
 ---
 
@@ -70,7 +70,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Optional (TFT deep-learning model — needs PyTorch):
+Optional (TFT deep-learning model - needs PyTorch):
 
 ```bash
 pip install torch pytorch-forecasting pytorch-lightning
@@ -166,7 +166,7 @@ export THERMOSENSE_API_URL=https://thermosense-black.vercel.app
 python3 uploader.py --continuous
 ```
 
-Place the sensor shaded, ventilated, ~1.5–2 m above ground, and record exact GPS coordinates for fair API comparison.
+Place the sensor shaded, ventilated, ~1.5-2 m above ground, and record exact GPS coordinates for fair API comparison.
 
 ### 6. Deploy to production
 
@@ -202,4 +202,4 @@ Other options (Docker, Railway, Cloudflare Tunnel): [deployment/README.md](deplo
 
 ## License
 
-MIT — see [LICENSE](LICENSE) if present in the repo.
+MIT - see [LICENSE](LICENSE) if present in the repo.
