@@ -39,13 +39,22 @@ def load_config() -> dict:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load model and configuration on startup; clean up on shutdown."""
-    config = load_config()
+    try:
+        config = load_config()
+    except Exception as exc:
+        print(f"[ThermoSense API] Config load failed: {exc}")
+        config = {}
     app.state.config = config
 
-    from src.models.loader import ModelManager
-    manager = ModelManager()
-    manager.load_models(config)
-    app.state.model_manager = manager
+    try:
+        from src.models.loader import ModelManager
+        manager = ModelManager()
+        manager.load_models(config)
+        app.state.model_manager = manager
+    except Exception as exc:
+        # Keep the API/dashboard up even if ML deps fail on the host (e.g. missing libgomp).
+        print(f"[ThermoSense API] Model manager unavailable: {exc}")
+        app.state.model_manager = None
 
     print("[ThermoSense API] Started. Dashboard at /  |  API docs at /docs")
     yield

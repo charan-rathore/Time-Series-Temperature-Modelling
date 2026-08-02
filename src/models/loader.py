@@ -17,14 +17,35 @@ import pandas as pd
 from src.data.fetcher import fetch_forecast_open_meteo
 from src.data.preprocess import load_processed
 from src.features.engineer import build_feature_matrix
-from src.models.sarima_model import SARIMAXModel
-from src.models.lgbm_model import LGBMForecastModel
-from src.models.ensemble import EnsembleStacker
+
+try:
+    from src.models.sarima_model import SARIMAXModel
+    _SARIMA_AVAILABLE = True
+except Exception as exc:  # ImportError / missing native libs
+    SARIMAXModel = None  # type: ignore[misc, assignment]
+    _SARIMA_AVAILABLE = False
+    print(f"[ModelManager] SARIMA unavailable: {exc}")
+
+try:
+    from src.models.lgbm_model import LGBMForecastModel
+    _LGBM_AVAILABLE = True
+except Exception as exc:  # ImportError / libgomp missing on some hosts
+    LGBMForecastModel = None  # type: ignore[misc, assignment]
+    _LGBM_AVAILABLE = False
+    print(f"[ModelManager] LightGBM unavailable: {exc}")
+
+try:
+    from src.models.ensemble import EnsembleStacker
+    _ENSEMBLE_AVAILABLE = True
+except Exception as exc:
+    EnsembleStacker = None  # type: ignore[misc, assignment]
+    _ENSEMBLE_AVAILABLE = False
+    print(f"[ModelManager] Ensemble unavailable: {exc}")
 
 try:
     from src.models.tft_model import TFTModel
     _TFT_AVAILABLE = True
-except ImportError:
+except Exception:
     _TFT_AVAILABLE = False
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -51,20 +72,21 @@ class ModelManager:
         loaded = []
 
         sarima_path = MODELS_DIR / "sarima.pkl"
-        if sarima_path.exists():
+        if _SARIMA_AVAILABLE and sarima_path.exists():
             self.sarima = SARIMAXModel(config.get("models", {}).get("sarima", {}))
             self.sarima.load(str(sarima_path))
             loaded.append("sarima")
 
         lgbm_cfg = config.get("models", {}).get("lgbm", {})
-        for h in [1, 2, 3]:
-            lgbm_path = MODELS_DIR / f"lgbm_h{h}.pkl"
-            if lgbm_path.exists():
-                m = LGBMForecastModel(lgbm_cfg, horizon=h)
-                m.load(str(lgbm_path))
-                self.lgbm_models[h] = m
-                if "lgbm" not in loaded:
-                    loaded.append("lgbm")
+        if _LGBM_AVAILABLE:
+            for h in [1, 2, 3]:
+                lgbm_path = MODELS_DIR / f"lgbm_h{h}.pkl"
+                if lgbm_path.exists():
+                    m = LGBMForecastModel(lgbm_cfg, horizon=h)
+                    m.load(str(lgbm_path))
+                    self.lgbm_models[h] = m
+                    if "lgbm" not in loaded:
+                        loaded.append("lgbm")
 
         if _TFT_AVAILABLE:
             tft_ckpt = MODELS_DIR / "tft.ckpt"
@@ -80,7 +102,7 @@ class ModelManager:
                     self.tft = None
 
         ens_path = MODELS_DIR / "ensemble.pkl"
-        if ens_path.exists():
+        if _ENSEMBLE_AVAILABLE and ens_path.exists():
             ens_cfg = config.get("models", {}).get("ensemble", {})
             self.ensemble = EnsembleStacker(ens_cfg)
             self.ensemble.load(str(ens_path))

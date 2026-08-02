@@ -3,15 +3,14 @@ name = "thermosense"
 version = "2.0.0"
 description = "Hyperlocal temperature intelligence — FastAPI + React dashboard"
 requires-python = ">=3.11"
-# Runtime deps for Vercel (omit training-only / viz packages to control bundle size).
-# Full local/Docker install still uses requirements.txt.
+# Vercel runtime deps. LightGBM is omitted here: its native libgomp is unavailable
+# on the Vercel Python image. Full local/Docker install still uses requirements.txt.
 dependencies = [
   "pandas>=2.2.0",
   "numpy>=2.0.0",
   "scipy>=1.14.0",
   "statsmodels>=0.14.0",
   "pmdarima>=2.0.4",
-  "lightgbm>=4.0.0",
   "scikit-learn>=1.5.0",
   "fastapi>=0.110.0",
   "pydantic>=2.0.0",
