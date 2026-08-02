@@ -54,9 +54,11 @@ Deeper system design, data lifecycle, models, and API surface live in:
 
 Watch ThermoSense on the production site: open the **Pipeline** page (last item in the left sidebar), train SARIMA / LightGBM / Ensemble, then read the Metrics to see why lower MAE and RMSE matter for hyperlocal forecasts.
 
-<video src="docs/videos/thermosense-training-demo.mp4" controls width="100%" poster=""></video>
+https://github.com/charan-rathore/Time-Series-Temperature-Modelling/raw/main/docs/videos/thermosense-training-demo.mp4
 
-[Download / open the demo video](docs/videos/thermosense-training-demo.mp4) · Live app: [thermosense-black.vercel.app](https://thermosense-black.vercel.app)
+<video src="https://github.com/charan-rathore/Time-Series-Temperature-Modelling/raw/main/docs/videos/thermosense-training-demo.mp4" controls width="100%"></video>
+
+[Download the demo video](docs/videos/thermosense-training-demo.mp4) · Live app: [thermosense-black.vercel.app](https://thermosense-black.vercel.app)
 
 ## Setup guide
 
