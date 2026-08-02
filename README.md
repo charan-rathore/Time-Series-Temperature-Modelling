@@ -4,7 +4,7 @@
 
 Live dashboard: [thermosense-black.vercel.app](https://thermosense-black.vercel.app)
 
-Latest Open-Meteo Bangalore demo metrics: [docs/demo-results.md](docs/demo-results.md)
+Latest Open-Meteo Bangalore demo metrics: [docs/demo-results.md](docs/demo-results.md) · [Watch the live training demo](#live-demo)
 
 ---
 
@@ -49,6 +49,14 @@ Deeper system design, data lifecycle, models, and API surface live in:
 **Clear advantage:** instead of trusting a grid-cell average, ThermoSense learns the bias between commercial APIs and your location, then applies that correction going forward - and shows the scoreboard so you can verify the improvement.
 
 ---
+
+## Live demo
+
+Watch ThermoSense on the production site: open the **Pipeline** page (last item in the left sidebar), train SARIMA / LightGBM / Ensemble, then read the Metrics to see why lower MAE and RMSE matter for hyperlocal forecasts.
+
+<video src="docs/videos/thermosense-training-demo.mp4" controls width="100%" poster=""></video>
+
+[Download / open the demo video](docs/videos/thermosense-training-demo.mp4) · Live app: [thermosense-black.vercel.app](https://thermosense-black.vercel.app)
 
 ## Setup guide
 
