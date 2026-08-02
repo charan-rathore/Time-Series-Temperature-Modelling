@@ -4,6 +4,8 @@
 
 Live dashboard: [thermosense-black.vercel.app](https://thermosense-black.vercel.app)
 
+Latest Open-Meteo Bangalore demo metrics: [docs/demo-results.md](docs/demo-results.md)
+
 ---
 
 ## Why this project exists
