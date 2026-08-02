@@ -202,6 +202,16 @@ Other options (Docker, Railway, Cloudflare Tunnel): [deployment/README.md](deplo
 
 ---
 
+## Contact
+
+If any query, please reach out to:
+
+- **Charan Rathore**
+- Email: ra7hore.charan@gmail.com
+- Phone: 6303460570
+
+---
+
 ## License
 
 MIT - see [LICENSE](LICENSE) if present in the repo.
