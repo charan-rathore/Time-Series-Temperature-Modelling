@@ -807,21 +807,31 @@ mlflow ui --port 5000
 
 ### Production Mode (Cloud)
 
-Option 1: **Railway** (free tier, recommended)
+Option 1: **Vercel** (recommended)
+
+```bash
+# vercel.json + pyproject.toml are already configured
+npm i -g vercel
+vercel --prod
+```
+
+Or import this GitHub repo at [vercel.com/new](https://vercel.com/new).
+
+Option 2: **Railway**
 
 ```bash
 # railway.toml is already configured
 railway up
 ```
 
-Option 2: **Docker**
+Option 3: **Docker**
 
 ```bash
-docker build -t thermosense .
+docker build -t thermosense -f deployment/Dockerfile .
 docker run -p 8000:8000 thermosense
 ```
 
-Option 3: **Cloudflare Tunnel** (edge deployment)
+Option 4: **Cloudflare Tunnel** (edge deployment)
 
 ```bash
 # Run on Raspberry Pi itself
@@ -1016,7 +1026,7 @@ After 30+ days of operation, you can claim:
 | **Experiment Tracking** | MLflow |
 | **API Framework** | FastAPI + Uvicorn |
 | **Frontend** | React 19, Recharts, Lucide icons |
-| **Deployment** | Railway, Docker, Cloudflare Tunnel |
+| **Deployment** | Vercel, Railway, Docker, Cloudflare Tunnel |
 
 ---
 

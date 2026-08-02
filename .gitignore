@@ -210,6 +210,12 @@ __marimo__/
 frontend/node_modules/
 frontend/build/
 
+# Vercel static output (produced by scripts/vercel_build.sh)
+/public/
+
+# Vercel local link / pull artifacts
+.vercel/
+
 # ── ThermoSense project-specific ─────────────────────────────────────────────
 
 # API credentials and secrets (NEVER commit these)

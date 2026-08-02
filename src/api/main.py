@@ -25,7 +25,10 @@ from .routes import forecast, history, metrics, pipeline, leaderboard, sensor, s
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../../config/config.yaml")
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-FRONTEND_DIR = _PROJECT_ROOT / "frontend" / "build"
+# Prefer Vercel CDN output (public/), fall back to local CRA build.
+_PUBLIC_DIR = _PROJECT_ROOT / "public"
+_CRA_BUILD_DIR = _PROJECT_ROOT / "frontend" / "build"
+FRONTEND_DIR = _PUBLIC_DIR if (_PUBLIC_DIR / "index.html").exists() else _CRA_BUILD_DIR
 
 
 def load_config() -> dict:
