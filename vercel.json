@@ -1,10 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "fluid": true,
   "functions": {
     "main.py": {
       "maxDuration": 300,
-      "includeFiles": "{config/**,models/**,data/**,src/**,frontend/build/**,public/**}",
-      "excludeFiles": "{tests/**,notebooks/**,docs/**,hardware/**,deployment/**,**/*.md,.git/**}"
+      "includeFiles": "{config/**,models/**,data/**,src/**}",
+      "excludeFiles": "{tests/**,notebooks/**,docs/**,hardware/**,deployment/**,frontend/node_modules/**,**/*.md,.git/**}"
     }
   }
 }

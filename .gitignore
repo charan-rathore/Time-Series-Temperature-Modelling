@@ -285,3 +285,5 @@ logs/
 # Config overrides with real secrets
 config/local_*.yaml
 config/secrets.yaml
+.vercel
+.env*
