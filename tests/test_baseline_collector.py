@@ -134,7 +134,7 @@ class TestLeaderboard:
             store_forecast(temp_db, d, "good_model", 1, 25.5)
             store_forecast(temp_db, d, "bad_model", 1, 27.0)
         
-        board = get_leaderboard(temp_db, window_days=30, horizon=1)
+        board = get_leaderboard(temp_db, window_days=365, horizon=1)
         
         assert len(board) == 2
         assert board[0]["source"] == "good_model"

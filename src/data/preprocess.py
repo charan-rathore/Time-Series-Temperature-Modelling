@@ -15,6 +15,7 @@ script (scripts/run_pipeline.py) and by notebooks.
 from __future__ import annotations
 
 from pathlib import Path
+import sqlite3
 from typing import Optional, Tuple
 
 import pandas as pd
@@ -134,6 +135,8 @@ def merge_with_legacy(
     else:
         merged["is_sensor_reading"] = False
 
+    merged["observation_source"] = merged["is_sensor_reading"].map({True: "legacy_unverified", False: "open_meteo_archive"})
+
     # Preserve original API temperature for bias feature computation
     if "temp_c" in api_df.columns:
         api_ref = api_df[["date", "temp_c"]].rename(columns={"temp_c": "temp_c_api"})
@@ -142,7 +145,7 @@ def merge_with_legacy(
     merged = merged.sort_values("date").reset_index(drop=True)
     n_sensor = merged["is_sensor_reading"].sum()
     print(f"[preprocess] Merged: {len(merged)} total rows "
-          f"({n_sensor} sensor readings, {len(merged) - n_sensor} API-only)")
+          f"({n_sensor} legacy observation rows, {len(merged) - n_sensor} API-only)")
     return merged
 
 
@@ -187,8 +190,41 @@ def detect_and_fill_gaps(
     inserted = ~df[date_col].isin(existing)
     df.loc[inserted, "gap_filled"] = True
     df.loc[inserted, "is_sensor_reading"] = False
+    df.loc[inserted, "observation_source"] = "gap_fill"
 
     return df, n_gaps
+
+
+def merge_collected_actuals(df: pd.DataFrame, db_path: Optional[Path] = None) -> pd.DataFrame:
+    """Overlay verified Pi daily actuals onto the historical feature source.
+
+    Only DHT22 records are admitted; simulated/manual rows cannot silently
+    become sensor ground truth. Called before saving processed Parquet.
+    """
+    if db_path is None:
+        db_path = _PROJECT_ROOT / "data" / "baselines" / "forecasts.db"
+    if not db_path.exists():
+        return df
+    with sqlite3.connect(str(db_path)) as conn:
+        try:
+            actuals = pd.read_sql_query("SELECT date, sensor_temp_c, sensor_humidity_pct "
+                                        "FROM daily_actuals WHERE source = 'dht22_sensor'", conn)
+        except sqlite3.OperationalError:
+            return df
+    if actuals.empty:
+        return df
+    out = df.copy()
+    out["date"] = pd.to_datetime(out["date"])
+    actuals["date"] = pd.to_datetime(actuals["date"])
+    out = out.merge(actuals, on="date", how="left", validate="one_to_one")
+    mask = out["sensor_temp_c"].notna()
+    out.loc[mask, "temp_c"] = out.loc[mask, "sensor_temp_c"]
+    out.loc[mask, "is_sensor_reading"] = True
+    out.loc[mask, "observation_source"] = "dht22_sensor"
+    if "temp_c_api" in out.columns:
+        out.loc[mask, "api_bias"] = out.loc[mask, "sensor_temp_c"] - out.loc[mask, "temp_c_api"]
+    out.loc[mask & out["sensor_humidity_pct"].notna(), "humidity_pct"] = out.loc[mask & out["sensor_humidity_pct"].notna(), "sensor_humidity_pct"]
+    return out.drop(columns=["sensor_temp_c", "sensor_humidity_pct"])
 
 
 def validate_processed(df: pd.DataFrame) -> None:
@@ -213,9 +249,9 @@ def validate_processed(df: pd.DataFrame) -> None:
     if temp_range[0] < -10 or temp_range[1] > 55:
         print(f"[preprocess] WARNING: temp_c range {temp_range} looks unusual for India.")
 
-    n_sensor = df.get("is_sensor_reading", pd.Series(dtype=bool)).sum()
+    n_sensor = df.get("observation_source", pd.Series(dtype=str)).eq("dht22_sensor").sum()
     print(f"[preprocess] Validation passed - {len(df)} rows, "
-          f"{n_sensor} sensor readings, temp range {temp_range[0]:.1f}-{temp_range[1]:.1f}°C")
+          f"{n_sensor} DHT22-tagged rows, temp range {temp_range[0]:.1f}-{temp_range[1]:.1f}°C")
 
 
 def save_processed(df: pd.DataFrame, output_path: Optional[str] = None) -> Path:
@@ -278,6 +314,7 @@ def run_pipeline(
         if n_gaps > 0:
             print(f"[preprocess] Gap-filled {n_gaps} missing days via forward-fill.")
 
+    merged = merge_collected_actuals(merged)
     validate_processed(merged)
     save_processed(merged, output_path)
 

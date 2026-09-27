@@ -111,8 +111,8 @@ For product overview and setup, see the [main README](../README.md).
   6. SERVE & COMPARE                                  ▼
   ┌─────────────────────────────────────────────────────────────────────────┐
   │  FastAPI Backend + React Dashboard:                                     │
-  │  • GET /api/forecast      → 3-day predictions with confidence bands    │
-  │  • GET /api/leaderboard   → Live RMSE/MAE vs Google, AccuWeather       │
+  │  • GET /api/forecast      → Regional forecast or unavailable state; no calibrated band    │
+  │  • GET /api/leaderboard   → Empty until matched forecast/actual rows exist       │
   │  • GET /api/metrics       → Model comparison across horizons           │
   │  • POST /api/sensor/readings → Receive sensor data from Pi             │
   └─────────────────────────────────────────────────────────────────────────┘
@@ -125,7 +125,7 @@ For product overview and setup, see the [main README](../README.md).
 **Production (Vercel):** https://thermosense-black.vercel.app
 
 
-ThermoSense ships with a production-ready React dashboard - not a Jupyter notebook afterthought, but a polished interface for monitoring forecasts, exploring historical data, evaluating models, and running the data pipeline.
+ThermoSense has a React demo dashboard. It is not proof of a running model or a sensor-backed data stream; see the current-state audit before using the screenshots as evidence.
 
 <p align="center">
   <img src="docs/images/dashboard-overview.png" alt="ThermoSense Dashboard Overview" width="90%">
@@ -135,7 +135,7 @@ ThermoSense ships with a production-ready React dashboard - not a Jupyter notebo
 
 ### Dashboard Home
 
-The home screen shows data points loaded, active model, tomorrow's forecast with confidence interval, and the Day-1 RMSE. The 30-day temperature chart overlays the sensor reading (blue) against the Open-Meteo API estimate (orange), making the local bias visually obvious.
+The home screen shows data availability and a clearly labeled regional forecast when no trained model exists. Historical model RMSE is not presented as a live score. When local records exist, its chart can compare an observation with the same-day Open-Meteo archive value; this difference alone does not establish cause or a future forecast win.
 
 <p align="center">
   <img src="docs/images/dashboard-chart.png" alt="Dashboard temperature chart" width="90%">
@@ -145,12 +145,12 @@ The home screen shows data points loaded, active model, tomorrow's forecast with
 
 ### Forecast Page
 
-3-day ahead predictions with 90% confidence intervals, served by whichever model currently performs best (ensemble by default). Each value represents the predicted daily temperature at the 9 PM local snapshot - the reference point used throughout the system.
+The dashboard can show a 9 PM local Open-Meteo regional forecast, clearly labeled as regional. Trained-model intervals and the former ensemble claim are unverified and not served by the audited build.
 
 <p align="center">
   <img src="docs/images/forecast.png" alt="Forecast page" width="90%">
   <br>
-  <em>3-day forecast with confidence bands. The feedback form below lets you submit actual readings to close the loop.</em>
+  <em>Historical screenshot only; on the audited public site, unauthenticated feedback is disabled and uncalibrated confidence bands are not displayed.</em>
 </p>
 
 ### History Explorer
@@ -168,22 +168,22 @@ Interactive exploration of the full historical dataset. Select any date range, v
 
 ### Metrics Comparison
 
-Head-to-head model comparison across all forecast horizons (Day 1/2/3). Each model's MAE, RMSE, MAPE, Skill Score, and 90% Coverage are displayed as bar charts, a radar chart, and a full results table. The best model is crowned automatically.
+Historical metrics UI exists, but source numbers from the old training flow are withheld until independent prospective evaluation. No current best-model claim is supported.
 
 <p align="center">
   <img src="docs/images/metrics-table.png" alt="Metrics comparison table" width="90%">
   <br>
-  <em>Full results table - SARIMA, LightGBM, and Ensemble evaluated across 3 horizons. Ensemble achieves Day-1 RMSE of 0.221°C.</em>
+  <em>Old screenshot only; its ensemble RMSE is invalid due to test-label leakage.</em>
 </p>
 
 ### Pipeline Control
 
-One-click data backfill, daily updates, and model training - all from the browser. Select which models to train, toggle MLflow logging, and monitor pipeline logs in real time.
+Backfill and daily updates run on a persistent host behind an API key. Browser training and feedback controls are disabled until an authenticated workflow is built. Model training is gated pending a prospective evaluator. The public Vercel site is a read-only demo.
 
 <p align="center">
   <img src="docs/images/pipeline.png" alt="Pipeline management" width="90%">
   <br>
-  <em>Pipeline control panel - backfill data, run daily updates, and train models without touching the terminal.</em>
+  <em>Old screenshot, not the currently enabled controls.</em>
 </p>
 
 ---
@@ -205,7 +205,7 @@ DHT22 Sensor (GPIO 4)
 │  • Reads temperature + humidity every 5 minutes                 │
 │  • Validates readings (-40°C to +80°C, 0-100% humidity)         │
 │  • Stores in local SQLite: hardware/readings.db                 │
-│  • Exposes HTTP API on port 8081 for health checks              │
+│  • Exposes loopback-only HTTP API on port 8081 for the uploader              │
 └─────────────────────────────────────────────────────────────────┘
          │
          ▼
@@ -230,11 +230,11 @@ DHT22 Sensor (GPIO 4)
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  uploader.py (cron job every 15 minutes)                        │
-│  • Queries sensor_daemon for unsynced readings                  │
+│  • Queries loopback sensor_daemon for unsynced readings                  │
 │  • Batches readings (100 per request)                           │
-│  • POSTs to cloud: POST /api/sensor/readings                    │
+│  • POSTs to persistent server: POST /api/sensor/readings (API key)                    │
 │  • On success: marks readings as synced locally                 │
-│  • Handles network failures with exponential backoff            │
+│  • Retains unsynced batches on network failures; retries next cycle            │
 └─────────────────────────────────────────────────────────────────┘
          │
          │  HTTP POST (JSON)
@@ -248,8 +248,8 @@ DHT22 Sensor (GPIO 4)
 ┌─────────────────────────────────────────────────────────────────┐
 │  Cloud API: POST /api/sensor/readings                           │
 │  • Validates incoming readings                                  │
-│  • Appends to data/processed/sensor_readings.parquet            │
-│  • Triggers feature recomputation if new day detected           │
+│  • Stores nearest 9 PM local-time reading in SQLite             │
+│  • Daily/backfill can overlay sensor actuals into processed features      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -424,7 +424,7 @@ Output schema:
 │  ├── daily_actuals: Ground truth sensor readings                │
 │  └── collection_log: Audit trail of collection runs             │
 │                                                                 │
-│  This enables the live leaderboard comparison!                  │
+│  This is a prerequisite for a future matched live leaderboard.                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -607,16 +607,9 @@ The model learns this correction automatically and applies it to future API fore
 
 ## Results
 
-### Current Model Performance (Trained on 377 data points)
+### Historical performance numbers need re-evaluation
 
-| Model | Day-1 RMSE | Day-1 MAE | Day-2 RMSE | Day-3 RMSE | Day-1 Skill |
-|-------|-----------|-----------|-----------|-----------|------------|
-| ARIMA(1,0,0) - original | 1.34°C | 1.0°C | 1.51°C | 1.86°C | - |
-| **SARIMA(X)** | 1.036°C | 1.036°C | 0.806°C | 1.885°C | 1.000 |
-| **LightGBM** | 1.520°C | 1.236°C | 1.354°C | 1.515°C | -0.181 |
-| **Ensemble** | **0.221°C** | **0.221°C** | **0.446°C** | **0.184°C** | **1.000** |
-
-**Key result**: The ensemble stacker (Ridge meta-learner over SARIMA + LightGBM) achieves a **Day-1 RMSE of 0.221°C** - an **84% improvement** over the original ARIMA baseline and a **79% improvement** over SARIMA alone.
+The earlier claimed 0.221°C ensemble score was not a valid holdout result: the meta-model fitted the test labels it was later scored against. Another historical report lists 0.107°C from the same leakage pattern. Neither establishes an advantage over a public forecast. Ensemble fitting and serving are disabled until out-of-fold training and untouched multi-window testing are implemented. See [the audit caveat](demo-results.md).
 
 ---
 
@@ -630,32 +623,18 @@ The most important feature for proving ThermoSense works.
 2. **API**: `GET /api/leaderboard?window_days=30&horizon=1`
 3. **CLI**: `python -m src.data.baseline_collector --leaderboard`
 
-### Example Output
+### Current public state
 
-```
-════════════════════════════════════════════════════════════════════
-           LIVE ACCURACY LEADERBOARD (Day-1, Last 30 Days)
-════════════════════════════════════════════════════════════════════
- Rank   Source             RMSE       MAE        N     
-────────────────────────────────────────────────────────────────────
- 🥇     ThermoSense        0.68°C     0.52°C     30    
- 🥈     OpenWeatherMap     1.24°C     0.98°C     30    
- 🥉     Open-Meteo         1.31°C     1.05°C     30    
- 4      AccuWeather        1.45°C     1.12°C     30    
-════════════════════════════════════════════════════════════════════
+The public Vercel demo has no sensor readings, no forecast rows in the leaderboard, and no persistent training artifacts. Treat the endpoint as a framework for future monitored comparison, not a current accuracy ranking. The former example numbers and statistical significance claims have been removed because there is no source data proving them.
 
-ThermoSense beats the best commercial app by 45%
-Statistical significance: p < 0.01, Cohen's d = 1.2
-```
+### Statistical tests, not proof yet
 
-### Statistical Rigor
-
-The `/api/statistics` endpoint provides:
+The `/api/statistics` endpoint has methods for:
 
 - **Paired t-test**: Compares ThermoSense errors vs baseline errors
 - **Confidence interval**: 95% CI on the improvement
 - **Effect size**: Cohen's d for practical significance
-- **Sample size**: Minimum 30 days required for validity
+- **Sample size**: Three matched values are accepted by the current endpoint, which is too few for a strong claim
 
 ---
 

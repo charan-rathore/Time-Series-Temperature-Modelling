@@ -97,7 +97,7 @@ export default function Leaderboard() {
         <Target style={{ width: 48, height: 48 }} />
         <p>Baseline collection not initialized.</p>
         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 8 }}>
-          Run <code style={{ background: 'var(--surface-elevated)', padding: '2px 6px', borderRadius: 4 }}>
+          On a persistent host, run <code style={{ background: 'var(--surface-elevated)', padding: '2px 6px', borderRadius: 4 }}>
             python scripts/collect_baselines.py --init
           </code> to set up the database.
         </p>

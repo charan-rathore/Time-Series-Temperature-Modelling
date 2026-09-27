@@ -51,7 +51,7 @@ DEFAULT_UPLOAD_INTERVAL = 900  # 15 minutes
 def fetch_unsynced_readings(sensor_url: str, limit: int = 1000) -> List[Dict[str, Any]]:
     """Fetch unsynced readings from the local sensor daemon."""
     try:
-        resp = requests.get(f"{sensor_url}/unsynced", timeout=10)
+        resp = requests.get(f"{sensor_url}/unsynced", params={"limit": limit}, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         return data.get("readings", [])
@@ -119,7 +119,13 @@ def upload_readings_to_cloud(
         resp.raise_for_status()
         result = resp.json()
         
-        return result.get("accepted", len(readings)), []
+        # Daily actuals are one per date; the API explicitly acknowledges
+        # valid off-window rows so the Pi queue can advance without data loss.
+        acknowledged = result.get("acknowledged", 0)
+        if result.get("rejected", 0) or acknowledged != len(readings):
+            logger.warning("Cloud acknowledged %s of %s readings; retaining batch", acknowledged, len(readings))
+            return 0, [r["id"] for r in readings]
+        return acknowledged, []
     
     except requests.HTTPError as e:
         if e.response is not None and e.response.status_code == 422:
@@ -199,7 +205,10 @@ def run_once(
         total_stats["marked_synced"] += batch_stats["marked_synced"]
         total_stats["failed"] += batch_stats["failed"]
         total_stats["batches"] += 1
-        
+
+        # A failed or partially accepted full batch must not spin forever.
+        if batch_stats["failed"] or batch_stats["marked_synced"] == 0:
+            break
         if batch_stats["fetched"] < batch_size:
             break
     

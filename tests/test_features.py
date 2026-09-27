@@ -55,6 +55,7 @@ def test_calendar_features_monsoon():
 
 def test_api_bias_feature():
     df = make_sample_df()
+    df["observation_source"] = "dht22_sensor"
     df = add_api_bias_feature(df, sensor_col="temp_c", api_col="temp_c_api")
     assert "api_bias" in df.columns
     assert "api_bias_roll7_mean" in df.columns

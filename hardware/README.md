@@ -6,12 +6,12 @@ This directory contains code for deploying a real temperature/humidity sensor us
 
 | Component | Approx. Cost | Notes |
 |-----------|-------------|-------|
-| Raspberry Pi Zero 2 W | $15 | Any Pi with GPIO works |
-| DHT22 sensor module | $5 | AM2302 variant recommended (has pull-up resistor) |
-| Jumper wires | $3 | Female-to-female for Pi GPIO |
-| (Optional) Breadboard | $5 | For prototyping |
+| Raspberry Pi Zero 2 W | Check local price | GPIO4 tested in code; physical compatibility needs a Pi check |
+| DHT22 sensor module | Check local price | Check whether module includes pull-up resistor |
+| Jumper wires | Check local price | Female-to-female for Pi GPIO |
+| (Optional) Breadboard | Check local price | For prototyping |
 
-**Total: ~$25**
+**Budget:** verify current board and sensor pricing before purchase.
 
 ## Wiring Diagram
 
@@ -28,16 +28,18 @@ DHT22 Module        Raspberry Pi
 
 ## Quick Start (Raspberry Pi)
 
+This uses Adafruit's current CircuitPython DHT driver through Blinka, not the older `Adafruit_DHT` extension. Physical Pi compatibility still requires a hardware test. Driver guide: https://learn.adafruit.com/dht-humidity-sensing-on-raspberry-pi-with-gdocs-logging/python-setup .
+
 ```bash
 # 1. Clone the repo
-git clone https://github.com/yourusername/Time-Series-Temperature-Modelling.git
+git clone https://github.com/charan-rathore/Time-Series-Temperature-Modelling.git
 cd Time-Series-Temperature-Modelling/hardware
 
 # 2. Install dependencies
 pip3 install -r requirements.txt
 
 # 3. Test the sensor (reads once and exits)
-python3 -c "import Adafruit_DHT; print(Adafruit_DHT.read_retry(Adafruit_DHT.DHT22, 4))"
+python3 -c "import board, adafruit_dht; d=adafruit_dht.DHT22(board.D4, use_pulseio=False); print(d.temperature, d.humidity); d.exit()"
 
 # 4. Start the daemon manually (for testing)
 python3 sensor_daemon.py --interval 60
@@ -108,7 +110,7 @@ $ curl http://localhost:8081/stats
 
 ## Simulation Mode (No Hardware)
 
-For development/testing without a Raspberry Pi, the daemon runs in simulation mode:
+For development/testing without a Raspberry Pi, simulation must be explicitly requested. A missing sensor driver in real mode stops startup instead of producing fake ground truth:
 
 ```bash
 # Force simulation mode
@@ -116,6 +118,8 @@ python3 sensor_daemon.py --simulate
 
 # Simulated readings follow a realistic diurnal pattern
 ```
+
+**Important:** simulated rows are rejected by the server. The uploader must target a persistent self-hosted server configured with `THERMOSENSE_API_KEY`, not the stateless Vercel demo. The Pi daemon listens on localhost only. Current cloud ingestion stores a 9 PM local-time daily actual in SQLite; it does not recompute features or retrain the model automatically.
 
 ## Deployment Checklist
 
@@ -133,17 +137,17 @@ python3 sensor_daemon.py --simulate
 ### "Failed to read sensor"
 
 1. Check wiring - data pin should be on GPIO4
-2. Verify sensor power (3.3V or 5V)
+2. Use 3.3V for the module and pull-up; never drive Pi GPIO at 5V
 3. Try adding a 10kΩ pull-up resistor
 4. Run `gpio readall` to check GPIO status
-5. Try different GPIO pin and update `--gpio` flag
+5. This implementation supports GPIO4 only; changing the pin requires a code change and hardware retest
 
-### "Adafruit_DHT not available"
+### "CircuitPython DHT driver unavailable"
 
 ```bash
 # Install on Raspberry Pi OS
 sudo apt-get install python3-dev python3-pip
-pip3 install Adafruit-DHT
+pip3 install adafruit-blinka adafruit-circuitpython-dht
 ```
 
 ### Permission denied on GPIO

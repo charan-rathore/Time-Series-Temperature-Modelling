@@ -44,7 +44,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from src.data.fetcher import backfill, fetch_forecast_open_meteo, fetch_owm_current
-from src.data.preprocess import load_processed, run_pipeline, save_processed
+from src.data.preprocess import load_processed, run_pipeline, save_processed, merge_collected_actuals
 
 
 def cmd_backfill(args: argparse.Namespace) -> None:
@@ -69,8 +69,9 @@ def cmd_backfill(args: argparse.Namespace) -> None:
     )
 
     print(f"\nBackfill complete: {len(processed)} days of data ready.")
-    print(f"  Sensor readings:  {processed['is_sensor_reading'].sum()}")
-    print(f"  API-only rows:    {(~processed['is_sensor_reading']).sum()}")
+    print(f"  Legacy observations: {processed['observation_source'].eq('legacy_unverified').sum()}")
+    print(f"  DHT22-tagged rows:   {processed['observation_source'].eq('dht22_sensor').sum()}")
+    print(f"  API-only rows:      {processed['observation_source'].eq('open_meteo_archive').sum()}")
     print(f"  Gap-filled rows:  {processed['gap_filled'].sum()}")
     print(f"  Date range:       {processed['date'].min().date()} → "
           f"{processed['date'].max().date()}")
@@ -119,7 +120,7 @@ def cmd_daily(args: argparse.Namespace) -> None:
         import pandas as pd
         updated = pd.concat([existing, new_rows], ignore_index=True)
         updated = updated.drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
-        save_processed(updated)
+        save_processed(merge_collected_actuals(updated))
         print(f"\nAppended {len(new_rows)} new row(s). Total: {len(updated)} rows.")
 
     # Always refresh the forecast for the next 7 days

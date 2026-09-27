@@ -36,7 +36,7 @@ echo "[1/6] Checking Python version..."
 PYTHON_VERSION=$($PYTHON_BIN --version 2>&1 | grep -oP '\d+\.\d+')
 echo "       Found Python $PYTHON_VERSION"
 
-# Install system dependencies for Adafruit_DHT
+# Install system dependencies for CircuitPython DHT/Blinka
 echo "[2/6] Installing system dependencies..."
 apt-get update -qq
 apt-get install -y -qq python3-pip python3-dev libgpiod2

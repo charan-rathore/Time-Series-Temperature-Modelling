@@ -22,6 +22,7 @@ class HistoricalPoint(BaseModel):
     humidity_pct: Optional[float] = None
     pressure_hpa: Optional[float] = None
     is_sensor_reading: Optional[bool] = None
+    observation_source: Optional[str] = None
 
 
 class HistoryResponse(BaseModel):
@@ -74,7 +75,8 @@ def get_history(
                     api_bias=_safe_float(row.get("api_bias") if "api_bias" in row.index else None),
                     humidity_pct=_safe_float(row.get("humidity_pct")),
                     pressure_hpa=_safe_float(row.get("pressure_hpa")),
-                    is_sensor_reading=bool(row.get("is_sensor_reading", False)),
+                    is_sensor_reading=bool(row.get("observation_source") == "dht22_sensor"),
+                    observation_source=str(row.get("observation_source", "unknown")),
                 ))
         except Exception as e:
             print(f"[history] Error reading processed data: {e}")

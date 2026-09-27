@@ -10,11 +10,14 @@ POST /feedback
 """
 
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import List, Optional
 
+import os
+import hmac
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Header
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -26,10 +29,10 @@ PROCESSED_PATH = _PROJECT_ROOT / "data" / "processed" / "daily_merged.parquet"
 class ForecastPoint(BaseModel):
     date: str
     predicted_temp_c: float
-    lower_bound_c: float
-    upper_bound_c: float
+    lower_bound_c: Optional[float] = None
+    upper_bound_c: Optional[float] = None
     horizon_days: int
-    confidence: str = "90%"
+    confidence: str = "unverified"
 
 
 class ForecastResponse(BaseModel):
@@ -37,6 +40,7 @@ class ForecastResponse(BaseModel):
     generated_at: str
     model_used: str
     forecasts: List[ForecastPoint]
+    availability: str = "trained_model"
 
 
 class FeedbackRequest(BaseModel):
@@ -68,15 +72,35 @@ def get_forecast(
 
     config = request.app.state.config
     location_name = config["location"]["name"]
-    today = date.today()
+    today = datetime.now(ZoneInfo(config["location"]["timezone"])).date()
 
     manager = getattr(request.app.state, "model_manager", None)
-    if manager is not None:
-        raw_forecasts = manager.forecast(days=days)
-        model_used = raw_forecasts[0]["model_used"] if raw_forecasts else "unknown"
-    else:
-        raw_forecasts = []
-        model_used = "placeholder"
+    raw_forecasts = manager.forecast(days=days) if manager is not None else []
+    model_used = raw_forecasts[0]["model_used"] if raw_forecasts else "none"
+
+    # A fixed fallback is not a weather forecast. Return an explicit unavailable
+    # state instead of making the dashboard display an invented 26 C prediction.
+    if not raw_forecasts or all(fc.get("model_used") in {"placeholder", "climatology", "fallback"} for fc in raw_forecasts):
+        # The external weather service provides a real regional forecast, but
+        # that is not a trained hyperlocal model. State provenance explicitly.
+        try:
+            from src.data.fetcher import fetch_forecast_open_meteo
+            regional = fetch_forecast_open_meteo(forecast_days=4, save_raw=False)
+            points = []
+            for d in range(1, days + 1):
+                target = pd.Timestamp(today + timedelta(days=d))
+                match = regional.loc[pd.to_datetime(regional["date"]) == target]
+                if match.empty or pd.isna(match.iloc[0]["temp_c"]):
+                    break
+                temp = float(match.iloc[0]["temp_c"])
+                points.append(ForecastPoint(date=target.date().isoformat(), predicted_temp_c=round(temp, 2),
+                                            horizon_days=d, confidence="none"))
+            return ForecastResponse(location=location_name, generated_at=datetime.utcnow().isoformat() + "Z",
+                                    model_used="open_meteo_regional", forecasts=points,
+                                    availability="regional_forecast_only" if points else "forecast_unavailable")
+        except Exception:
+            return ForecastResponse(location=location_name, generated_at=datetime.utcnow().isoformat() + "Z",
+                                    model_used="none", forecasts=[], availability="forecast_unavailable")
 
     forecasts = []
     for d in range(1, days + 1):
@@ -91,13 +115,7 @@ def get_forecast(
                 horizon_days=d,
             ))
         else:
-            forecasts.append(ForecastPoint(
-                date=forecast_date,
-                predicted_temp_c=26.0,
-                lower_bound_c=24.5,
-                upper_bound_c=27.5,
-                horizon_days=d,
-            ))
+            break
 
     return ForecastResponse(
         location=location_name,
@@ -108,13 +126,18 @@ def get_forecast(
 
 
 @router.post("/feedback", response_model=FeedbackResponse, summary="Submit actual temperature")
-def post_feedback(payload: FeedbackRequest, request: Request):
+def post_feedback(payload: FeedbackRequest, request: Request, x_api_key: Optional[str] = Header(None)):
     """
     Accept an actual temperature observation for a past date.
 
     Appends the observation to the processed data store and marks it
     as a sensor reading so the api_bias feature can be recomputed.
     """
+    if os.environ.get("VERCEL"):
+        raise HTTPException(503, "Feedback storage is unavailable on this deployment")
+    expected = os.environ.get("THERMOSENSE_API_KEY")
+    if not expected or not x_api_key or not hmac.compare_digest(x_api_key, expected):
+        raise HTTPException(401, "Feedback requires a configured API key")
     try:
         obs_date = date.fromisoformat(payload.date)
     except ValueError:
@@ -123,6 +146,8 @@ def post_feedback(payload: FeedbackRequest, request: Request):
     if obs_date > date.today():
         raise HTTPException(status_code=400, detail="Cannot submit feedback for a future date")
 
+    if not PROCESSED_PATH.exists():
+        raise HTTPException(503, "No dataset is loaded; observation was not saved")
     bias_updated = False
     try:
         if PROCESSED_PATH.exists():
@@ -149,7 +174,7 @@ def post_feedback(payload: FeedbackRequest, request: Request):
 
             df.to_parquet(PROCESSED_PATH, index=False)
     except Exception as e:
-        print(f"[feedback] Error persisting observation: {e}")
+        raise HTTPException(503, "Observation could not be saved") from e
 
     return FeedbackResponse(
         status="accepted",

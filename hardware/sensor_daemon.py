@@ -8,7 +8,7 @@ HTTP endpoint for the uploader to query.
 
 Hardware Setup:
     - DHT22 data pin connected to GPIO 4 (BCM numbering)
-    - DHT22 VCC to 3.3V or 5V
+    - DHT22 VCC to Pi 3.3V
     - DHT22 GND to GND
     - 10K pull-up resistor between data and VCC (some modules have this built-in)
 
@@ -29,17 +29,31 @@ import sqlite3
 import sys
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 try:
-    import Adafruit_DHT
+    import board
+    import adafruit_dht
     SENSOR_AVAILABLE = True
 except ImportError:
     SENSOR_AVAILABLE = False
-    print("[WARN] Adafruit_DHT not available. Running in simulation mode.")
+    print("[ERROR] CircuitPython DHT driver unavailable. Use --simulate explicitly for development; real service will refuse to start.")
+
+_sensor_device = None
+
+
+def sensor_device(gpio_pin: int):
+    global _sensor_device
+    if _sensor_device is None:
+        if gpio_pin != 4:
+            raise ValueError("Current DHT driver supports GPIO4 only; wire DATA to physical pin 7")
+        _sensor_device = adafruit_dht.DHT22(board.D4, use_pulseio=False)
+    return _sensor_device
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -91,27 +105,20 @@ def read_dht22(gpio_pin: int, retries: int = 3) -> Optional[Dict[str, Any]]:
     Returns None if reading fails after all retries.
     """
     if not SENSOR_AVAILABLE:
-        return simulate_reading()
+        return None
     
     for attempt in range(1, retries + 1):
-        humidity, temperature = Adafruit_DHT.read_retry(
-            Adafruit_DHT.DHT22, gpio_pin, retries=5, delay_seconds=2
-        )
-        
-        if humidity is not None and temperature is not None:
-            if -40 <= temperature <= 80 and 0 <= humidity <= 100:
-                return {
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
-                    "temp_c": round(temperature, 2),
-                    "humidity_pct": round(humidity, 2),
-                    "source": "dht22_sensor",
-                }
-            else:
-                logger.warning(f"Invalid reading: temp={temperature}, humidity={humidity}")
-        
-        logger.warning(f"Read attempt {attempt}/{retries} failed")
+        try:
+            device = sensor_device(gpio_pin)
+            humidity, temperature = device.humidity, device.temperature
+            if humidity is not None and temperature is not None and -40 <= temperature <= 80 and 0 <= humidity <= 100:
+                return {"timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                        "temp_c": round(temperature, 2), "humidity_pct": round(humidity, 2),
+                        "source": "dht22_sensor"}
+            logger.warning("Invalid DHT22 reading: temp=%s, humidity=%s", temperature, humidity)
+        except RuntimeError as exc:
+            logger.warning("Transient DHT22 read failed (%s/%s): %s", attempt, retries, exc)
         time.sleep(2)
-    
     return None
 
 
@@ -124,7 +131,7 @@ def simulate_reading() -> Dict[str, Any]:
     """
     import random
     
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Asia/Kolkata"))
     hour = now.hour
     
     base_temp = 25.0
@@ -224,11 +231,15 @@ def get_9pm_reading(db_path: Path, date: Optional[str] = None) -> Optional[Dict[
     
     This is the target reading for comparison with forecasts.
     """
+    # Local 21:00 in the configured site timezone, stored timestamps in UTC.
     if date is None:
-        date = datetime.now().strftime("%Y-%m-%d")
-    
-    start = f"{date}T20:30:00Z"
-    end = f"{date}T21:30:00Z"
+        date = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d")
+    site_tz = ZoneInfo("Asia/Kolkata")
+    target_local = datetime.fromisoformat(f"{date}T21:00:00").replace(tzinfo=site_tz)
+    target_utc = target_local.astimezone(timezone.utc)
+    start = (target_utc - timedelta(minutes=30)).isoformat().replace("+00:00", "Z")
+    end = (target_utc + timedelta(minutes=30)).isoformat().replace("+00:00", "Z")
+    target = target_utc.isoformat().replace("+00:00", "Z")
     
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
@@ -237,10 +248,10 @@ def get_9pm_reading(db_path: Path, date: Optional[str] = None) -> Optional[Dict[
         SELECT id, timestamp, temp_c, humidity_pct, source
         FROM sensor_readings
         WHERE timestamp >= ? AND timestamp <= ?
-        ORDER BY ABS(strftime('%s', timestamp) - strftime('%s', ? || 'T21:00:00Z'))
+        ORDER BY ABS(strftime('%s', timestamp) - strftime('%s', ?))
         LIMIT 1
         """,
-        (start, end, date),
+        (start, end, target),
     )
     row = cursor.fetchone()
     conn.close()
@@ -309,8 +320,15 @@ class SensorHTTPHandler(BaseHTTPRequestHandler):
             else:
                 self._send_json({"error": "No readings available"}, 404)
         
-        elif self.path == "/unsynced":
-            readings = get_unsynced_readings(self.db_path)
+        elif self.path.startswith("/unsynced"):
+            from urllib.parse import parse_qs, urlparse
+            params = parse_qs(urlparse(self.path).query)
+            try:
+                limit = max(1, min(1000, int(params.get("limit", [100])[0])))
+            except (TypeError, ValueError):
+                self._send_json({"error": "limit must be an integer"}, 400)
+                return
+            readings = get_unsynced_readings(self.db_path, limit=limit)
             self._send_json({"count": len(readings), "readings": readings})
         
         elif self.path == "/stats":
@@ -353,12 +371,12 @@ class SensorHTTPHandler(BaseHTTPRequestHandler):
 def run_http_server(port: int, db_path: Path):
     """Run the HTTP server in a separate thread."""
     SensorHTTPHandler.db_path = db_path
-    server = HTTPServer(("0.0.0.0", port), SensorHTTPHandler)
+    server = HTTPServer(("127.0.0.1", port), SensorHTTPHandler)
     logger.info(f"HTTP server listening on port {port}")
     server.serve_forever()
 
 
-def main_loop(gpio_pin: int, interval: int, db_path: Path):
+def main_loop(gpio_pin: int, interval: int, db_path: Path, simulate: bool = False):
     """Main sensor reading loop."""
     logger.info(f"Starting sensor loop: GPIO={gpio_pin}, interval={interval}s, db={db_path}")
     
@@ -367,7 +385,7 @@ def main_loop(gpio_pin: int, interval: int, db_path: Path):
     
     while True:
         try:
-            reading = read_dht22(gpio_pin)
+            reading = simulate_reading() if simulate else read_dht22(gpio_pin)
             
             if reading:
                 row_id = store_reading(reading, db_path)
@@ -415,11 +433,15 @@ def main():
     
     args = parser.parse_args()
     
+    global SENSOR_AVAILABLE
     if args.simulate:
-        global SENSOR_AVAILABLE
         SENSOR_AVAILABLE = False
         logger.info("Simulation mode enabled via --simulate flag")
+    elif not SENSOR_AVAILABLE:
+        parser.error("CircuitPython DHT driver is unavailable; install hardware/requirements.txt or pass --simulate for a local dry run")
     
+    if args.interval < 2:
+        parser.error("DHT22 needs at least 2 seconds between readings")
     db_path = Path(args.db)
     init_database(db_path)
     
@@ -431,7 +453,7 @@ def main():
     http_thread.start()
     
     try:
-        main_loop(args.gpio, args.interval, db_path)
+        main_loop(args.gpio, args.interval, db_path, simulate=args.simulate)
     except KeyboardInterrupt:
         logger.info("Shutting down sensor daemon...")
         sys.exit(0)

@@ -4,10 +4,10 @@ This folder contains deployment configurations for various platforms.
 
 ## Quick Start
 
-### Option 1: Vercel (Recommended)
+### Option 1: Vercel (read-only public demo)
 
 ThermoSense runs as a FastAPI app on Vercel Fluid Compute, with the React
-dashboard built into `public/` and served from the CDN.
+dashboard built into `public/` and served from the CDN. It has no durable SQLite/Parquet store or background training worker. Sensor upload, manual feedback, and pipeline writes are unavailable. The historical demo results are not live model metrics. Use a persistent host for sensor ingestion and model training.
 
 ```bash
 # Install CLI
@@ -22,7 +22,7 @@ Or import the GitHub repo at [vercel.com/new](https://vercel.com/new).
 Vercel detects FastAPI via `main.py` / `pyproject.toml` and runs
 `scripts/vercel_build.sh` to build the dashboard.
 
-Optional env vars (Project Settings → Environment Variables):
+Optional env vars for read-only presentation (Project Settings → Environment Variables):
 
 | Variable | Description | Required |
 |----------|-------------|----------|
@@ -32,7 +32,7 @@ Optional env vars (Project Settings → Environment Variables):
 | `LOCATION_NAME` | Display name for the sensor site | Optional |
 | `LOCATION_LAT` / `LOCATION_LON` | Coordinates | Optional |
 
-### Option 2: Railway
+### Option 2: Railway (persistent disk and API key required)
 
 ```bash
 npm install -g @railway/cli
@@ -43,7 +43,7 @@ railway up
 
 Or connect your GitHub repo in the [Railway Dashboard](https://railway.app).
 
-### Option 3: Render
+### Option 3: Render (persistent disk and API key required)
 
 ```bash
 # Push to GitHub, then in Render dashboard:
@@ -52,7 +52,7 @@ Or connect your GitHub repo in the [Railway Dashboard](https://railway.app).
 # 3. Render auto-detects render.yaml
 ```
 
-### Option 4: Docker
+### Option 4: Docker (mount a persistent volume and set an API key)
 
 ```bash
 docker build -t thermosense -f deployment/Dockerfile .
@@ -78,6 +78,8 @@ uvicorn src.api.main:app --host 0.0.0.0 --port 8000 &
 ./deployment/cloudflare_tunnel.sh setup
 ./deployment/cloudflare_tunnel.sh install
 ```
+
+**Security:** do not expose the training API on a public self-hosted server without `THERMOSENSE_API_KEY`. The Pi uploader and server must share that key. Verify the persistent volume and scheduled jobs separately; these deployment examples alone do not enable them.
 
 ## Files
 
