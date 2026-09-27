@@ -7,13 +7,15 @@ import { api } from '../api';
 
 export default function Pipeline() {
   const [status, setStatus] = useState(null);
+  // The browser cannot safely hold a server-side training API key.
+  const isDemoHost = true;
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState([]);
   const [polling, setPolling] = useState(false);
 
   const [bfStart, setBfStart] = useState('');
   const [bfEnd, setBfEnd] = useState('');
-  const [trainModels, setTrainModels] = useState({ sarima: true, lgbm: true, ensemble: true });
+  const [trainModels, setTrainModels] = useState({});
   const [skipMlflow, setSkipMlflow] = useState(false);
 
   const [mlflow, setMlflow] = useState(null);
@@ -73,6 +75,7 @@ export default function Pipeline() {
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   const runBackfill = async () => {
+    if (isDemoHost) return;
     try {
       await api.runBackfill(bfStart || undefined, bfEnd || undefined);
       startPolling();
@@ -83,6 +86,7 @@ export default function Pipeline() {
   };
 
   const runDaily = async () => {
+    if (isDemoHost) return;
     try {
       await api.runDaily();
       startPolling();
@@ -93,6 +97,7 @@ export default function Pipeline() {
   };
 
   const runTraining = async () => {
+    if (isDemoHost) return;
     const models = Object.entries(trainModels).filter(([, v]) => v).map(([k]) => k);
     if (!models.length) return;
     try {
@@ -147,7 +152,7 @@ export default function Pipeline() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2>Pipeline Control</h2>
-          <p>Run data ingestion, training, and manage the full workflow</p>
+          <p>View ingestion and model availability; browser actions require an authenticated persistent host</p>
         </div>
         <div className="btn-group">
           {polling && <span className="badge badge-warning"><span className="badge-dot" /> Live</span>}
@@ -155,18 +160,20 @@ export default function Pipeline() {
         </div>
       </div>
 
+      {isDemoHost && <div className="info-box" style={{ marginBottom: 20 }}>Browser controls are read-only until an authenticated server workflow is built. Run backfill from the CLI on a persistent host; model training is paused until a sound walk-forward evaluator and genuine site data exist. Vercel cannot save these results between requests.</div>}
+
       {/* Pipeline steps */}
       <div className="steps">
         <div className={`step ${pipelineStep === 0 ? 'active' : pipelineStep > 0 ? 'completed' : ''}`}>
-          <div className="step-number">{pipelineStep > 0 ? '✓' : '1'}</div>
+          <div className="step-number">1</div>
           <div className="step-text">Data Ingestion</div>
         </div>
         <div className={`step ${pipelineStep === 1 ? 'active' : pipelineStep > 1 ? 'completed' : ''}`}>
-          <div className="step-number">{pipelineStep > 1 ? '✓' : '2'}</div>
+          <div className="step-number">2</div>
           <div className="step-text">Model Training</div>
         </div>
         <div className={`step ${pipelineStep >= 2 ? 'completed' : ''}`}>
-          <div className="step-number">{pipelineStep >= 2 ? '✓' : '3'}</div>
+          <div className="step-number">3</div>
           <div className="step-text">Ready to Serve</div>
         </div>
       </div>
@@ -187,7 +194,7 @@ export default function Pipeline() {
             <Zap style={{ width: 16, color: status?.features_available ? 'var(--success)' : 'var(--text-muted)' }} />
           </div>
           <div className="stat-value">{status?.features_rows?.toLocaleString() || 0}</div>
-          <div className="stat-label">{status?.features_available ? 'Feature matrix ready' : 'Not computed yet'}</div>
+          <div className="stat-label">{status?.features_available ? 'Feature rows present; not all usable for training' : 'Not computed yet'}</div>
         </div>
         <div className="card">
           <div className="card-header">
@@ -196,7 +203,7 @@ export default function Pipeline() {
           </div>
           <div className="stat-value">{status?.models_available?.length || 0}</div>
           <div className="stat-label">
-            {status?.models_available?.length ? status.models_available.join(', ') : 'No models trained'}
+            {status?.models_available?.length ? status.models_available.join(', ') : 'No validated models serving'}
           </div>
         </div>
       </div>
@@ -212,7 +219,7 @@ export default function Pipeline() {
             {getJobBadge('backfill')}
           </div>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 16 }}>
-            Fetch historical data from Open-Meteo and merge with legacy sensor readings.
+            Fetch historical Open-Meteo data and merge with unverified legacy readings and any DHT22-tagged local actuals.
           </p>
           <div className="form-row" style={{ marginBottom: 12 }}>
             <div className="form-group" style={{ flex: 1 }}>
@@ -225,10 +232,10 @@ export default function Pipeline() {
             </div>
           </div>
           <div className="btn-group">
-            <button className="btn btn-primary" onClick={runBackfill} disabled={isJobRunning('backfill')}>
+            <button className="btn btn-primary" onClick={runBackfill} disabled={isDemoHost || isJobRunning('backfill')}>
               {isJobRunning('backfill') ? <span className="spinner" /> : <Play />} Run Backfill
             </button>
-            <button className="btn btn-secondary" onClick={runDaily} disabled={isJobRunning('daily') || !status?.data_available}>
+            <button className="btn btn-secondary" onClick={runDaily} disabled={isDemoHost || isJobRunning('daily') || !status?.data_available}>
               {isJobRunning('daily') ? <span className="spinner" /> : <Download />} Daily Update
             </button>
           </div>
@@ -244,10 +251,10 @@ export default function Pipeline() {
             {getJobBadge('train')}
           </div>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 16 }}>
-            Train SARIMA, LightGBM, and Ensemble models on your dataset.
+            Training is paused until a validated walk-forward evaluator and real site observations are available.
           </p>
           <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
-            {['sarima', 'lgbm', 'ensemble'].map(m => (
+            {[].map(m => (
               <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
@@ -271,7 +278,7 @@ export default function Pipeline() {
           <button
             className="btn btn-success"
             onClick={runTraining}
-            disabled={isJobRunning('train') || !status?.data_available}
+            disabled={isDemoHost || isJobRunning('train') || !status?.data_available}
           >
             {isJobRunning('train') ? <span className="spinner" /> : <Play />} Train Models
           </button>

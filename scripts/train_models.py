@@ -41,7 +41,6 @@ from src.evaluation.metrics import evaluate_all, compare_models
 from src.features.engineer import build_feature_matrix
 from src.models.sarima_model import SARIMAXModel
 from src.models.lgbm_model import LGBMForecastModel
-from src.models.ensemble import EnsembleStacker
 
 MODELS_DIR = _PROJECT_ROOT / "models"
 FEATURES_DIR = _PROJECT_ROOT / "data" / "features"
@@ -83,6 +82,15 @@ def prepare_data(config: dict) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame
     test_start = n - test_days
     val_start = test_start - val_days
 
+    if n < test_days + 12:
+        raise ValueError(f"Only {n} complete feature rows; need at least {test_days + 12} for a holdout plus training")
+    verified_sensor = features.get("observation_source", pd.Series(index=features.index, dtype=str)).eq("dht22_sensor").sum()
+    if verified_sensor < 60:
+        raise ValueError("Need at least 60 DHT22-tagged site observations after feature engineering; legacy and archive records cannot prove live sensor performance")
+    if n < 90:
+        raise ValueError("Need at least 90 complete days for training, validation, and an untouched test set")
+    if not features.iloc[-test_days:]["observation_source"].eq("dht22_sensor").all():
+        raise ValueError("Every held-out test target must be a real DHT22 observation, never a public weather value")
     train_df = features.iloc[:val_start].copy()
     val_df = features.iloc[val_start:test_start].copy()
     test_df = features.iloc[test_start:].copy()
@@ -249,84 +257,15 @@ def train_ensemble(
     lgbm_results: dict,
     tft_results: dict,
 ) -> dict:
-    """Train ensemble stacker from individual model predictions."""
-    print("\n" + "=" * 60)
-    print("  Training Ensemble Stacker")
-    print("=" * 60)
+    """Train an ensemble only with pre-test base predictions.
 
-    ensemble_cfg = config["models"]["ensemble"]
-
-    sarima_cfg = config["models"]["sarima"]
-    sarima_model = SARIMAXModel(sarima_cfg)
-    full_train = pd.concat([train_df, val_df], ignore_index=True)
-    sarima_model.fit(full_train)
-
-    lgbm_cfg = config["models"]["lgbm"]
-    lgbm_models = {}
-    for h in [1, 2, 3]:
-        m = LGBMForecastModel(lgbm_cfg, horizon=h)
-        m.fit(train_df, val_df=val_df)
-        lgbm_models[h] = m
-
-    n_test = len(test_df)
-    max_h = min(3, n_test)
-
-    oof_sarima = np.zeros((n_test, max_h))
-    oof_lgbm = np.zeros((n_test, max_h))
-
-    for h_idx, h in enumerate(range(1, max_h + 1)):
-        sarima_preds = sarima_model.predict(steps=n_test, future_df=test_df)
-        if len(sarima_preds) >= n_test:
-            oof_sarima[:, h_idx] = sarima_preds[:n_test]
-        else:
-            oof_sarima[:len(sarima_preds), h_idx] = sarima_preds
-
-        lgbm_preds = lgbm_models[h].predict(steps=n_test, future_df=test_df)
-        if len(lgbm_preds) >= n_test:
-            oof_lgbm[:, h_idx] = lgbm_preds[:n_test]
-        else:
-            oof_lgbm[:len(lgbm_preds), h_idx] = lgbm_preds
-
-    actuals = test_df["temp_c"].values
-
-    available_base_models = ["sarima", "lgbm"]
-    oof_preds = {"sarima": oof_sarima, "lgbm": oof_lgbm}
-
-    if _TFT_AVAILABLE and tft_results:
-        oof_tft = np.zeros((n_test, max_h))
-        for h_idx in range(max_h):
-            key = f"day{h_idx + 1}"
-            if key in tft_results:
-                oof_tft[:, h_idx] = tft_results[key].get("mae", 0)
-        oof_preds["tft"] = oof_tft
-        available_base_models.append("tft")
-
-    actuals_2d = np.column_stack([actuals] * max_h) if actuals.ndim == 1 else actuals
-
-    ensemble_cfg_with_models = {**ensemble_cfg, "base_models": available_base_models}
-    stacker = EnsembleStacker(ensemble_cfg_with_models)
-    stacker.fit_from_oof(oof_preds, actuals_2d, horizons=list(range(1, max_h + 1)))
-
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    stacker.save(str(MODELS_DIR / "ensemble.pkl"))
-
-    results = {}
-    for h_idx, h in enumerate(range(1, max_h + 1)):
-        base_preds_h = {}
-        for name in available_base_models:
-            base_preds_h[name] = np.array([oof_preds[name][0, h_idx]])
-
-        ens_pred_h = stacker.meta_models[h].predict(
-            np.column_stack([base_preds_h[n] for n in available_base_models])
-        )
-
-        actual_h = actuals[0] if h_idx < len(actuals) else None
-        if actual_h is not None:
-            metrics = evaluate_all(np.array([actual_h]), ens_pred_h)
-            results[f"day{h}"] = metrics
-            print(f"  Day-{h}: RMSE={metrics['rmse']:.3f}°C, MAE={metrics['mae']:.3f}°C")
-
-    return results
+    No out-of-fold predictions are currently generated on the training window.
+    A stacker fitted to test labels would leak the answer into its own score.
+    Until an OOF training pipeline exists, omit the ensemble artifact and score.
+    """
+    print("[train] Ensemble skipped: no leakage-free out-of-fold training predictions.")
+    print("[train] Never fit a meta-model to the held-out test labels.")
+    return {}
 
 
 def log_to_mlflow(
@@ -398,9 +337,9 @@ def print_comparison_table(all_results: dict) -> None:
 def main():
     parser = argparse.ArgumentParser(description="ThermoSense Model Training")
     parser.add_argument(
-        "--models", nargs="+", default=["sarima", "lgbm", "ensemble"],
+        "--models", nargs="+", default=["sarima", "lgbm"],
         choices=["sarima", "lgbm", "tft", "ensemble", "all"],
-        help="Models to train (default: sarima lgbm ensemble)",
+        help="Models to train (default: sarima lgbm; ensemble unavailable pending leakage-free OOF)",
     )
     parser.add_argument("--skip-tft", action="store_true", help="Skip TFT training")
     parser.add_argument("--no-mlflow", action="store_true", help="Skip MLflow logging")
@@ -418,6 +357,8 @@ def main():
     print(f"  Time: {datetime.now().isoformat()}")
     print("=" * 60)
 
+    raise SystemExit("Model training is paused: build a true prospective walk-forward evaluator before producing new model artifacts")
+
     config = load_config()
     train_df, val_df, test_df = prepare_data(config)
 
@@ -425,13 +366,11 @@ def main():
 
     sarima_results = {}
     if "sarima" in args.models:
-        sarima_results = train_sarima(train_df, val_df, test_df, config)
-        all_results["sarima"] = sarima_results
+        raise ValueError("SARIMA evaluation also needs forecast-origin alignment and a true walk-forward evaluator before training can be published or served")
 
     lgbm_results = {}
     if "lgbm" in args.models:
-        lgbm_results = train_lgbm(train_df, val_df, test_df, config)
-        all_results["lgbm"] = lgbm_results
+        raise ValueError("LightGBM evaluation still has forecast-origin/target alignment issues; do not publish or serve until a true walk-forward evaluator is implemented")
 
     tft_results = {}
     if "tft" in args.models:

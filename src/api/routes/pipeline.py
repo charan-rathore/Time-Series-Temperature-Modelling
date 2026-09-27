@@ -12,6 +12,8 @@ GET  /pipeline/mlflow     - Get MLflow experiment runs
 from __future__ import annotations
 
 import json
+import os
+import hmac
 import subprocess
 import sys
 import threading
@@ -21,7 +23,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Header
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -36,6 +38,14 @@ _job_store: Dict[str, Dict[str, Any]] = {}
 _job_lock = threading.Lock()
 _log_lines: List[str] = []
 _LOG_MAX = 500
+
+
+def _require_pipeline_access(api_key: Optional[str]) -> None:
+    if os.environ.get("VERCEL"):
+        raise HTTPException(503, "Pipeline writes are unavailable on the stateless demo host")
+    expected = os.environ.get("THERMOSENSE_API_KEY")
+    if not expected or not api_key or not hmac.compare_digest(api_key, expected):
+        raise HTTPException(401, "Pipeline actions require an API key")
 
 
 def _append_log(line: str) -> None:
@@ -116,7 +126,8 @@ class LogsResponse(BaseModel):
 
 
 @router.post("/backfill", response_model=JobResponse, summary="Run data backfill")
-def run_backfill(payload: BackfillRequest = BackfillRequest()):
+def run_backfill(payload: BackfillRequest = BackfillRequest(), x_api_key: Optional[str] = Header(None)):
+    _require_pipeline_access(x_api_key)
     with _job_lock:
         if "backfill" in _job_store and _job_store["backfill"]["status"] == "running":
             raise HTTPException(400, "Backfill is already running")
@@ -134,7 +145,8 @@ def run_backfill(payload: BackfillRequest = BackfillRequest()):
 
 
 @router.post("/daily", response_model=JobResponse, summary="Run daily update")
-def run_daily():
+def run_daily(x_api_key: Optional[str] = Header(None)):
+    _require_pipeline_access(x_api_key)
     with _job_lock:
         if "daily" in _job_store and _job_store["daily"]["status"] == "running":
             raise HTTPException(400, "Daily update is already running")
@@ -147,7 +159,9 @@ def run_daily():
 
 
 @router.post("/train", response_model=JobResponse, summary="Train models")
-def run_training(payload: TrainRequest = TrainRequest()):
+def run_training(payload: TrainRequest = TrainRequest(), x_api_key: Optional[str] = Header(None)):
+    _require_pipeline_access(x_api_key)
+    raise HTTPException(503, "Trained-model evaluation is disabled pending validated walk-forward tests")
     with _job_lock:
         if "train" in _job_store and _job_store["train"]["status"] == "running":
             raise HTTPException(400, "Training is already running")
@@ -189,15 +203,18 @@ def get_status(request: Request):
         except Exception:
             pass
 
+    # Artifacts cannot be declared available until they pass prospective
+    # validation and are actually loaded for serving.
     model_files = []
-    for p in MODELS_DIR.glob("*.pkl"):
-        model_files.append(p.stem)
 
     results_data = None
     if RESULTS_PATH.exists():
         try:
             with open(RESULTS_PATH) as f:
                 results_data = json.load(f)
+                results_data.pop("ensemble", None)  # Historical test-set leakage
+                results_data.pop("lgbm", None)  # Forecast origin alignment not established
+                results_data.pop("sarima", None)  # Forecast issue-time covariates not established
         except Exception:
             pass
 

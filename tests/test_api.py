@@ -36,22 +36,25 @@ def test_health():
     assert response.json()["status"] == "ok"
 
 
-def test_forecast_default():
+def test_forecast_default(monkeypatch):
+    monkeypatch.setattr("src.data.fetcher.fetch_forecast_open_meteo", lambda **kwargs: __import__("pandas").DataFrame())
     response = client.get("/forecast")
     assert response.status_code == 200
     data = response.json()
     assert "forecasts" in data
-    assert len(data["forecasts"]) == 3
+    assert data["forecasts"] == []
+    assert data["availability"] == "forecast_unavailable"
     assert "model_used" in data
     assert "location" in data
 
 
-def test_forecast_single_day():
+def test_forecast_single_day(monkeypatch):
+    monkeypatch.setattr("src.data.fetcher.fetch_forecast_open_meteo", lambda **kwargs: __import__("pandas").DataFrame())
     response = client.get("/forecast?days=1")
     assert response.status_code == 200
     data = response.json()
-    assert len(data["forecasts"]) == 1
-    assert data["forecasts"][0]["horizon_days"] == 1
+    assert data["forecasts"] == []
+    assert data["availability"] == "forecast_unavailable"
 
 
 def test_forecast_invalid_days():
@@ -59,28 +62,27 @@ def test_forecast_invalid_days():
     assert response.status_code == 400
 
 
-def test_forecast_response_has_bounds():
+def test_forecast_response_has_bounds(monkeypatch):
+    monkeypatch.setattr("src.data.fetcher.fetch_forecast_open_meteo", lambda **kwargs: __import__("pandas").DataFrame())
     response = client.get("/forecast?days=1")
     assert response.status_code == 200
-    fc = response.json()["forecasts"][0]
-    assert "predicted_temp_c" in fc
-    assert "lower_bound_c" in fc
-    assert "upper_bound_c" in fc
-    assert fc["lower_bound_c"] <= fc["predicted_temp_c"] <= fc["upper_bound_c"]
+    assert response.json()["forecasts"] == []
+    assert response.json()["model_used"] == "none"
 
 
-def test_feedback_valid():
+def test_feedback_valid(monkeypatch):
+    monkeypatch.setenv("VERCEL", "1")
     response = client.post("/forecast/feedback", json={
         "date": "2024-07-11",
         "actual_temp_c": 27.0
     })
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "accepted"
+    assert response.status_code == 503
+    assert "unavailable" in response.json()["detail"]
 
 
-def test_feedback_future_date():
-    response = client.post("/forecast/feedback", json={
+def test_feedback_future_date(monkeypatch):
+    monkeypatch.setenv("THERMOSENSE_API_KEY", "test-key")
+    response = client.post("/forecast/feedback", headers={"X-API-Key": "test-key"}, json={
         "date": "2099-01-01",
         "actual_temp_c": 30.0
     })

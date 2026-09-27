@@ -5,7 +5,7 @@ Transforms the merged daily DataFrame into a rich feature matrix
 for use by LightGBM, TFT, and the ensemble stacker.
 
 Key innovation: the api_bias feature captures the systematic offset
-between our sensor location and the Open-Meteo API's nearest station,
+between a DHT22-tagged local observation and the Open-Meteo grid estimate,
 allowing the model to learn hyperlocal microclimate corrections.
 """
 
@@ -69,8 +69,9 @@ def add_api_bias_feature(
 
     api_bias = sensor_actual_temp - open_meteo_api_temp
 
-    A positive bias means our location runs warmer than the API's nearest station
-    (e.g., urban heat island effect). The rolling mean captures systematic drift.
+    A positive difference means a tagged local reading exceeds the API grid estimate.
+    Siting, time matching or calibration may cause this; the rolling mean measures
+    the difference without attributing its cause.
 
     This is the key feature that enables hyperlocal correction without retraining
     the underlying NWP model.
@@ -78,9 +79,13 @@ def add_api_bias_feature(
     if api_col not in df.columns:
         return df
 
-    df["api_bias"] = df[sensor_col] - df[api_col]
-    df["api_bias_roll7_mean"] = df["api_bias"].shift(1).rolling(bias_window).mean()
-    df["api_bias_roll7_std"] = df["api_bias"].shift(1).rolling(bias_window).std()
+    # The archive-derived target is not local sensor ground truth. Do not
+    # manufacture zero local bias on API-only rows or repeat a gap-fill value.
+    local = df.get("observation_source", pd.Series(index=df.index, dtype=str)).eq("dht22_sensor")
+    df["api_bias"] = (df[sensor_col] - df[api_col]).where(local)
+    previous_bias = df["api_bias"].shift(1)
+    df["api_bias_roll7_mean"] = previous_bias.rolling(bias_window, min_periods=2).mean()
+    df["api_bias_roll7_std"] = previous_bias.rolling(bias_window, min_periods=2).std()
     return df
 
 

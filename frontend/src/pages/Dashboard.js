@@ -88,6 +88,7 @@ export default function Dashboard({ onNavigate }) {
         <button className="btn btn-secondary btn-sm" onClick={load}><RefreshCw /> Refresh</button>
       </div>
 
+      {!status?.data_available && <div className="info-box" style={{ marginBottom: 20 }}>Demo host: no live dataset or trained model is loaded. Any forecast shown is Open-Meteo regional weather, not a hyperlocal model. Historical metrics below are not current sensor performance.</div>}
       <div className="card-grid">
         <div className="card">
           <div className="card-header">
@@ -121,12 +122,12 @@ export default function Dashboard({ onNavigate }) {
           </div>
           <div className="stat-label">
             {forecast?.forecasts?.[0]
-              ? `${forecast.forecasts[0].lower_bound_c}° - ${forecast.forecasts[0].upper_bound_c}°C range`
+              ? forecast.availability === "regional_forecast_only" ? "Open-Meteo regional estimate; no validated interval" : `${forecast.forecasts[0].lower_bound_c}° - ${forecast.forecasts[0].upper_bound_c}°C range`
               : 'No forecast available'}
           </div>
           <div className="info-hint">
             <Info style={{ width: 12, height: 12 }} />
-            Predicted daily avg temperature (9 PM snapshot) for tomorrow
+            9 PM local snapshot forecast; source shown below
           </div>
         </div>
 
@@ -136,22 +137,20 @@ export default function Dashboard({ onNavigate }) {
             <div className="stat-icon blue"><TrendingUp /></div>
           </div>
           <div className="stat-value">
-            {status?.last_training_results?.ensemble?.day1?.rmse
-              ? `${status.last_training_results.ensemble.day1.rmse.toFixed(3)}°C`
-              : status?.last_training_results?.lgbm?.day1?.rmse
+            {status?.models_available?.length && status?.data_available && status?.last_training_results?.lgbm?.day1?.rmse
                 ? `${status.last_training_results.lgbm.day1.rmse.toFixed(3)}°C`
                 : '-'}
           </div>
           <div className="stat-label">Root mean squared error</div>
           <div className="info-hint">
             <Info style={{ width: 12, height: 12 }} />
-            Avg prediction error vs actual observed temperature on test data
+            No verified live accuracy score on this host
           </div>
         </div>
       </div>
 
       {/* Forecast strip */}
-      {forecast?.forecasts && (
+      {!!forecast?.forecasts?.length && (
         <div className="card" style={{ marginBottom: 24, cursor: 'pointer' }} onClick={() => onNavigate('forecast')}>
           <div className="card-header">
             <span className="card-title"><CloudSun style={{ width: 14, height: 14, marginRight: 6, verticalAlign: -2 }} />
@@ -161,8 +160,7 @@ export default function Dashboard({ onNavigate }) {
             </span>
           </div>
           <p className="chart-description">
-            Predicted daily average temperature for the next 3 days. Each value represents the expected temperature
-            at the 9 PM local snapshot, which is used as the daily reference point.
+            Predicted 9 PM local-time temperatures for the next 3 days. These are point-in-time snapshots, not daily averages.
           </p>
           <div className="card-grid-3">
             {forecast.forecasts.map(f => {
@@ -173,7 +171,7 @@ export default function Dashboard({ onNavigate }) {
                   <div className="forecast-day">Day {f.horizon_days}</div>
                   <div className="forecast-date">{fmtDate}</div>
                   <div className="forecast-temp">{f.predicted_temp_c}°</div>
-                  <div className="forecast-range">{f.lower_bound_c}° - {f.upper_bound_c}°C</div>
+                  {f.confidence !== "none" && <div className="forecast-range">{f.lower_bound_c}° - {f.upper_bound_c}°C</div>}
                 </div>
               );
             })}
@@ -189,11 +187,9 @@ export default function Dashboard({ onNavigate }) {
           </div>
           <p className="chart-description">
             Comparison of two temperature sources over the last 30 days.{' '}
-            <strong style={{ color: '#3b82f6' }}>Sensor</strong> = locally recorded ground-truth readings
-            (from physical sensors or manual observations).{' '}
+            <strong style={{ color: '#3b82f6' }}>Observation</strong> = a local recorded value; older manual rows are not verified DHT22 readings.{' '}
             <strong style={{ color: '#f59e0b' }}>API</strong> = Open-Meteo grid-cell estimate for this location.
-            The API temperature is typically lower because it represents a regional grid average, which doesn't capture
-            local microclimate effects (urban heat, building proximity, etc.) that the sensor picks up.
+            Differences can reflect siting, time matching, measurement calibration, or local microclimate; they do not by themselves prove the cause.
           </p>
           <div className="chart-container">
             <ResponsiveContainer width="100%" height="100%">

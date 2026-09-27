@@ -21,7 +21,8 @@ def temp_db_path():
 
 
 @pytest.fixture
-def client(temp_db_path):
+def client(temp_db_path, monkeypatch):
+    monkeypatch.setenv("THERMOSENSE_API_KEY", "test-sensor-key")
     """Create a test client with mocked database path."""
     with patch("src.api.routes.sensor._DB_PATH", temp_db_path):
         with patch("src.data.baseline_collector._DB_PATH", temp_db_path):
@@ -31,7 +32,15 @@ def client(temp_db_path):
             app = FastAPI()
             app.include_router(router, prefix="/api/sensor")
             
-            yield TestClient(app)
+            class AuthenticatedClient:
+                def __init__(self):
+                    self.client = TestClient(app)
+                def post(self, path, **kwargs):
+                    kwargs.setdefault("headers", {"X-API-Key": "test-sensor-key"})
+                    return self.client.post(path, **kwargs)
+                def get(self, path, **kwargs):
+                    return self.client.get(path, **kwargs)
+            yield AuthenticatedClient()
 
 
 class TestUploadReadings:
@@ -42,7 +51,7 @@ class TestUploadReadings:
             json={
                 "readings": [
                     {
-                        "timestamp": "2026-05-07T21:00:00Z",
+                        "timestamp": "2026-05-07T15:30:00Z",
                         "temp_c": 27.5,
                         "humidity_pct": 65.0,
                         "source": "dht22_sensor"
@@ -61,8 +70,8 @@ class TestUploadReadings:
             "/api/sensor/readings",
             json={
                 "readings": [
-                    {"timestamp": "2026-05-07T12:00:00Z", "temp_c": 30.0},
-                    {"timestamp": "2026-05-07T21:00:00Z", "temp_c": 27.0},
+                    {"timestamp": "2026-05-07T06:30:00Z", "temp_c": 30.0},
+                    {"timestamp": "2026-05-07T15:30:00Z", "temp_c": 27.0},
                     {"timestamp": "2026-05-07T03:00:00Z", "temp_c": 22.0},
                 ]
             }
@@ -87,9 +96,9 @@ class TestUploadReadings:
             "/api/sensor/readings",
             json={
                 "readings": [
-                    {"timestamp": "2026-05-05T21:00:00Z", "temp_c": 26.0},
-                    {"timestamp": "2026-05-06T21:00:00Z", "temp_c": 27.0},
-                    {"timestamp": "2026-05-07T21:00:00Z", "temp_c": 28.0},
+                    {"timestamp": "2026-05-05T15:30:00Z", "temp_c": 26.0},
+                    {"timestamp": "2026-05-06T15:30:00Z", "temp_c": 27.0},
+                    {"timestamp": "2026-05-07T15:30:00Z", "temp_c": 28.0},
                 ]
             }
         )
@@ -111,7 +120,7 @@ class TestLatestReading:
             "/api/sensor/readings",
             json={
                 "readings": [
-                    {"timestamp": "2026-05-07T21:00:00Z", "temp_c": 27.5}
+                    {"timestamp": "2026-05-07T15:30:00Z", "temp_c": 27.5}
                 ]
             }
         )
@@ -139,15 +148,15 @@ class TestSensorHistory:
             "/api/sensor/readings",
             json={
                 "readings": [
-                    {"timestamp": "2026-05-05T21:00:00Z", "temp_c": 26.0},
-                    {"timestamp": "2026-05-06T21:00:00Z", "temp_c": 27.0},
-                    {"timestamp": "2026-05-07T21:00:00Z", "temp_c": 28.0},
+                    {"timestamp": "2026-05-05T15:30:00Z", "temp_c": 26.0},
+                    {"timestamp": "2026-05-06T15:30:00Z", "temp_c": 27.0},
+                    {"timestamp": "2026-05-07T15:30:00Z", "temp_c": 28.0},
                 ]
             }
         )
         
-        response = client.get("/api/sensor/history")
-        
+        response = client.get("/api/sensor/history", params={"start_date": "2026-05-01", "end_date": "2026-05-31"})
+
         assert response.status_code == 200
         data = response.json()
         assert data["count"] == 3
@@ -158,9 +167,9 @@ class TestSensorHistory:
             "/api/sensor/readings",
             json={
                 "readings": [
-                    {"timestamp": "2026-05-01T21:00:00Z", "temp_c": 25.0},
-                    {"timestamp": "2026-05-05T21:00:00Z", "temp_c": 26.0},
-                    {"timestamp": "2026-05-10T21:00:00Z", "temp_c": 27.0},
+                    {"timestamp": "2026-05-01T15:30:00Z", "temp_c": 25.0},
+                    {"timestamp": "2026-05-05T15:30:00Z", "temp_c": 26.0},
+                    {"timestamp": "2026-05-10T15:30:00Z", "temp_c": 27.0},
                 ]
             }
         )

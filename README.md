@@ -1,10 +1,10 @@
 # ThermoSense
 
-**Hyperlocal temperature forecasts for your exact location - not the nearest weather station.**
+**A testbed for hyperlocal temperature forecasting with local sensor input and public weather data.**
 
 Live dashboard: [thermosense-black.vercel.app](https://thermosense-black.vercel.app)
 
-Latest Open-Meteo Bangalore demo metrics: [docs/demo-results.md](docs/demo-results.md) · [Watch the live training demo](#live-demo)
+Historical, unverified Bangalore demo metrics (ensemble result affected by test-set leakage): [docs/demo-results.md](docs/demo-results.md) · [Watch the live training demo](#live-demo)
 
 ---
 
@@ -22,10 +22,12 @@ ThermoSense is an end-to-end IoT + ML product that:
 
 1. Collects ground-truth temperature/humidity from a physical sensor (Raspberry Pi + DHT22), or starts from historical/API data while you add hardware later
 2. Pulls commercial weather API forecasts for the same coordinates
-3. Learns the local bias (`sensor − API`) and trains forecasting models on your site’s data
-4. Serves a live dashboard and API with 3-day hyperlocal forecasts and a public accuracy leaderboard against commercial baselines
+3. Computes a local bias from paired observations; trained-model accuracy is not yet proven and model serving remains gated
+4. Serves a public read-only demo and a locally runnable API. A reliable 3-day hyperlocal forecast and a live baseline leaderboard still require persistent data, real sensor observations and leakage-free validation
 
-Typical use cases: personal hyperlocal forecasts, proving that a location-specific model beats generic apps with real metrics, portfolio/demo of applied ML + IoT, or a starting point for agriculture/energy alerts tied to *your* conditions.
+Typical use cases: personal hyperlocal forecasts, testing whether a location-specific model improves on generic apps once real paired observations exist, portfolio/demo of applied ML + IoT, or a starting point for agriculture/energy alerts tied to *your* conditions.
+
+Audit and real-source benchmark results: [docs/ground-truth-audit.md](docs/ground-truth-audit.md).
 
 Deeper system design, data lifecycle, models, and API surface live in:
 
@@ -42,17 +44,17 @@ Deeper system design, data lifecycle, models, and API surface live in:
 |----------------------|-------------|
 | One-size-fits-region forecast | Forecast corrected for **your** microclimate |
 | No ground truth at your site | Optional physical sensor closes the loop |
-| Accuracy claims without your data | Live leaderboard vs Open-Meteo / OWM / AccuWeather on **your** observations |
-| Black-box apps | Trainable models (SARIMA, LightGBM, ensemble) you control and retrain |
-| No feedback path | Dashboard feedback + continuous daily pipeline |
+| Accuracy claims without your data | Leaderboard framework; public demo currently has no live observations or rankings |
+| Black-box apps | Auditable pipeline and baseline scripts; model serving held until proper evaluation |
+| No feedback path | Feedback and daily pipeline on a persistent local/server deployment, not the Vercel demo |
 
-**Clear advantage:** instead of trusting a grid-cell average, ThermoSense learns the bias between commercial APIs and your location, then applies that correction going forward - and shows the scoreboard so you can verify the improvement.
+**Current status:** the pipeline can compare local readings to public weather data, but no live sensor-backed improvement has been established on the public demo. The historical ensemble score is invalid because the test labels were used to fit its meta-model.
 
 ---
 
 ## Live demo
 
-Watch ThermoSense on the production site: open the **Pipeline** page (last item in the left sidebar), train SARIMA / LightGBM / Ensemble, then read the Metrics to see why lower MAE and RMSE matter for hyperlocal forecasts.
+The recorded training video shows an earlier local workflow. The live Vercel demo cannot run backfill or training and has no current sensor-backed forecast. The historical ensemble numbers in that video were affected by test-label leakage.
 
 https://github.com/charan-rathore/Time-Series-Temperature-Modelling/raw/main/docs/videos/thermosense-training-demo.mp4
 
@@ -67,7 +69,7 @@ https://github.com/charan-rathore/Time-Series-Temperature-Modelling/raw/main/doc
 - Python 3.10+
 - Node.js 18+ (for the React dashboard)
 - Git
-- Optional: Raspberry Pi + DHT22 for live sensor ground truth (~$25)
+- Optional: Raspberry Pi + DHT22 for live sensor ground truth (verify current local prices)
 
 ### 1. Clone and install
 
@@ -113,7 +115,7 @@ ACCUWEATHER_API_KEY=your_accuweather_key      # free tier: developer.accuweather
 
 Open-Meteo (primary weather source) needs **no API key**.
 
-### 3. Backfill data and train models
+### 3. Backfill data and audit available observations
 
 First-time historical pull (~365 days):
 
@@ -127,14 +129,13 @@ Daily incremental update (manual or cron):
 python scripts/run_pipeline.py --mode daily
 ```
 
-Train the core models:
+Run source-backed checks instead of claiming a trained-model score:
 
 ```bash
-# Fast path (~2 minutes): SARIMA + LightGBM + Ensemble
-python scripts/train_models.py --models sarima lgbm ensemble
-
-# Include TFT if you installed PyTorch (~10 minutes)
-python scripts/train_models.py --models sarima lgbm tft ensemble
+# The historical training script is intentionally blocked until issue-time covariates and a walk-forward evaluator are implemented
+python scripts/backtest_legacy.py                # time-ordered simple baselines
+python scripts/backtest_open_meteo_previous_runs.py  # 24/48/72-hour archived forecasts
+python scripts/evaluate_bias_correction.py --offline-raw data/raw/previous_runs_2024-06-02_2024-07-11.json  # causal experimental bias correction, legacy data unverified
 ```
 
 ### 4. Run locally
@@ -174,15 +175,16 @@ python3 sensor_daemon.py --simulate   # dry run
 python3 sensor_daemon.py              # real DHT22 on GPIO 4
 sudo ./install.sh                     # start on boot
 
-export THERMOSENSE_API_URL=https://thermosense-black.vercel.app
+export THERMOSENSE_API_URL=http://YOUR_PERSISTENT_SERVER:8000
+# Set THERMOSENSE_API_KEY on both Pi uploader and server. Vercel demo rejects sensor uploads.
 python3 uploader.py --continuous
 ```
 
 Place the sensor shaded, ventilated, ~1.5-2 m above ground, and record exact GPS coordinates for fair API comparison.
 
-### 6. Deploy to production
+### 6. Deploy the read-only demo
 
-**Vercel (current production host)**
+**Vercel (read-only public host)**
 
 ```bash
 npm i -g vercel
@@ -192,12 +194,12 @@ vercel --prod
 
 Or import the GitHub repo at [vercel.com/new](https://vercel.com/new).
 
-Production URL: https://thermosense-black.vercel.app  
+Read-only public demo URL: https://thermosense-black.vercel.app
 Health: https://thermosense-black.vercel.app/api/health
 
 Other options (Docker, Railway, Cloudflare Tunnel): [deployment/README.md](deployment/README.md).
 
-### 7. Daily operations (cron)
+### 7. Daily operations (on a persistent host, with an API key)
 
 ```bash
 # After the 9 PM sensor snapshot
@@ -207,7 +209,7 @@ Other options (Docker, Railway, Cloudflare Tunnel): [deployment/README.md](deplo
 0 18 * * * cd /path/to/thermosense && .venv/bin/python -m src.data.baseline_collector --collect
 
 # Weekly retrain
-0 0 * * 0 cd /path/to/thermosense && .venv/bin/python scripts/train_models.py --models sarima lgbm ensemble
+0 0 * * 0 cd /path/to/thermosense && echo "Train only after the walk-forward evaluator is verified"
 ```
 
 ---
@@ -224,4 +226,4 @@ If any query, please reach out to:
 
 ## License
 
-MIT - see [LICENSE](LICENSE) if present in the repo.
+No license file is currently present. Do not assume permission to reuse this repository.

@@ -6,11 +6,12 @@ import {
 import { api } from '../api';
 
 function getDefaultStart() {
-  return '2024-06-12';
+  const d = new Date(); d.setDate(d.getDate() - 30);
+  return d.toISOString().slice(0, 10);
 }
 
 function getDefaultEnd() {
-  return '2024-07-11';
+  return new Date().toISOString().slice(0, 10);
 }
 
 export default function History() {
@@ -37,12 +38,14 @@ export default function History() {
     bias: r.api_bias,
     humidity: r.humidity_pct,
     pressure: r.pressure_hpa,
+    observation_source: r.observation_source,
   })) || [];
 
   const exportCSV = () => {
     if (!chartData.length) return;
-    const headers = ['date', 'temp_c', 'api_temp_c', 'api_bias', 'humidity_pct', 'pressure_hpa'];
-    const rows = chartData.map(r => headers.map(h => r[h === 'temp_c' ? 'temp' : h] ?? '').join(','));
+    const headers = ['date', 'temp_c', 'api_temp_c', 'api_bias', 'humidity_pct', 'pressure_hpa', 'observation_source'];
+    const key = { temp_c: 'temp', api_temp_c: 'api', api_bias: 'bias', humidity_pct: 'humidity', pressure_hpa: 'pressure' };
+    const rows = chartData.map(r => headers.map(h => r[key[h] || h] ?? '').join(','));
     const csv = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -91,11 +94,9 @@ export default function History() {
             <div className="card-header"><span className="card-title">Temperature Timeline</span></div>
             <p className="chart-description">
               Daily temperature readings from two sources over the selected date range.{' '}
-              <strong style={{ color: '#3b82f6' }}>Sensor</strong> = locally recorded ground-truth temperature (physical sensor or manual observation).{' '}
+              <strong style={{ color: '#3b82f6' }}>Observation</strong> = a recorded local value with source listed below; old manual rows are not verified DHT22 data.{' '}
               <strong style={{ color: '#f59e0b' }}>API</strong> = Open-Meteo weather API estimate for the grid cell covering this location.{' '}
-              <strong style={{ color: '#ef4444' }}>Bias</strong> = Sensor minus API (positive means sensor reads warmer, 
-              typically due to urban heat island or microclimate effects). Bias only appears where both sensor 
-              and API data are available for the same date.
+              <strong style={{ color: '#ef4444' }}>Difference</strong> = local observation minus same-date archive temperature. This may reflect sensor siting, calibration or a real microclimate. It appears only when both values exist.
             </p>
             <div className="chart-container chart-container-lg">
               <ResponsiveContainer width="100%" height="100%">
@@ -135,9 +136,9 @@ export default function History() {
                     }}
                   />
                   <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                  <Line type="monotone" dataKey="temp" name="Sensor (local) °C" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="temp" name="Observation (local) °C" stroke="#3b82f6" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="api" name="API (Open-Meteo) °C" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
-                  <Line type="monotone" dataKey="bias" name="Bias (Sensor − API) °C" stroke="#ef4444" strokeWidth={1} dot={false} />
+                  <Line type="monotone" dataKey="bias" name="Difference (local − API) °C" stroke="#ef4444" strokeWidth={1} dot={false} />
                   {chartData.length > 60 && <Brush dataKey="date" height={24} stroke="#3b82f6" fill="#14161e" />}
                 </LineChart>
               </ResponsiveContainer>
@@ -219,9 +220,7 @@ export default function History() {
             <div className="info-box" style={{ marginBottom: 16 }}>
               <Info style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
               <span style={{ fontSize: '0.78rem' }}>
-                <strong>Bias</strong> = Sensor − API temperature. Positive bias (red) means the local sensor reads warmer 
-                than the API grid estimate. <strong>Source</strong> = "Sensor" if a local reading exists, "API" if only 
-                the Open-Meteo value is available for that date.
+                <strong>Difference</strong> = local observation − archive temperature. Source distinguishes a tagged DHT22 reading from an unverified legacy manual row and an API-only estimate.
               </span>
             </div>
             <div className="table-wrapper">
@@ -229,9 +228,9 @@ export default function History() {
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Sensor °C</th>
+                    <th>Observation °C</th>
                     <th>API °C</th>
-                    <th>Bias (°C)</th>
+                    <th>Difference (°C)</th>
                     <th>Humidity %</th>
                     <th>Pressure hPa</th>
                     <th>Source</th>
@@ -250,7 +249,7 @@ export default function History() {
                       <td className="mono">{r.pressure_hpa ?? '-'}</td>
                       <td>
                         <span className={`badge ${r.is_sensor_reading ? 'badge-success' : 'badge-info'}`}>
-                          {r.is_sensor_reading ? 'Sensor' : 'API'}
+                          {r.observation_source === "dht22_sensor" ? "DHT22-tagged" : r.observation_source === "legacy_unverified" ? "Legacy (unverified)" : "API"}
                         </span>
                       </td>
                     </tr>

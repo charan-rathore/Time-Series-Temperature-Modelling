@@ -8,13 +8,17 @@ Endpoints:
 """
 
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
+import os
+import hmac
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Header
 from pydantic import BaseModel, Field
 
 from src.data.baseline_collector import store_actual, _DB_PATH, init_database
+import yaml
 
 router = APIRouter()
 
@@ -27,17 +31,18 @@ class SensorReading(BaseModel):
 
 
 class ReadingsBatch(BaseModel):
-    readings: List[SensorReading] = Field(..., min_items=1, max_items=1000)
+    readings: List[SensorReading] = Field(..., min_length=1, max_length=1000)
 
 
 class ReadingsResponse(BaseModel):
     accepted: int
     rejected: int
+    acknowledged: int = Field(..., description="Input readings safely processed, including outside the daily 9 PM window")
     message: str
 
 
 @router.post("/readings", response_model=ReadingsResponse)
-def upload_readings(batch: ReadingsBatch):
+def upload_readings(batch: ReadingsBatch, x_api_key: Optional[str] = Header(None)):
     """
     Upload a batch of sensor readings.
     
@@ -45,32 +50,48 @@ def upload_readings(batch: ReadingsBatch):
     to the cloud database. Readings are stored as daily actuals for the 9 PM
     comparison window.
     """
+    if os.environ.get("VERCEL"):
+        raise HTTPException(503, "Sensor storage is not configured for durable cloud writes")
+    expected_key = os.environ.get("THERMOSENSE_API_KEY")
+    if not expected_key or not x_api_key or not hmac.compare_digest(x_api_key, expected_key):
+        raise HTTPException(401, "Sensor upload requires a configured API key")
     init_database(_DB_PATH)
-    
+    with open(Path(__file__).resolve().parents[3] / "config" / "config.yaml") as config_file:
+        site_timezone = ZoneInfo(yaml.safe_load(config_file)["location"]["timezone"])
+
     accepted = 0
     rejected = 0
+    valid_readings = 0
     
     readings_by_date = {}
     
     for reading in batch.readings:
         try:
             ts = datetime.fromisoformat(reading.timestamp.replace("Z", "+00:00"))
+            if ts.tzinfo is None:
+                raise ValueError("timestamp needs timezone")
+            if not (-40 <= reading.temp_c <= 80) or (reading.humidity_pct is not None and not 0 <= reading.humidity_pct <= 100) or reading.source != "dht22_sensor":
+                rejected += 1
+                continue
         except ValueError:
             rejected += 1
             continue
         
-        reading_date = ts.date()
-        hour = ts.hour
-        
-        if 20 <= hour <= 22:
+        valid_readings += 1
+        local_ts = ts.astimezone(site_timezone)
+        reading_date = local_ts.date()
+        distance = abs((local_ts - datetime.combine(reading_date, datetime.min.time(), site_timezone).replace(hour=21)).total_seconds())
+
+        if distance <= 1800:
             if reading_date not in readings_by_date:
                 readings_by_date[reading_date] = reading
             else:
                 existing_ts = datetime.fromisoformat(
                     readings_by_date[reading_date].timestamp.replace("Z", "+00:00")
                 )
-                existing_hour = existing_ts.hour
-                if abs(hour - 21) < abs(existing_hour - 21):
+                existing_local = existing_ts.astimezone(site_timezone)
+                existing_distance = abs((existing_local - datetime.combine(reading_date, datetime.min.time(), site_timezone).replace(hour=21)).total_seconds())
+                if distance < existing_distance:
                     readings_by_date[reading_date] = reading
     
     for reading_date, reading in readings_by_date.items():
@@ -85,11 +106,13 @@ def upload_readings(batch: ReadingsBatch):
         else:
             rejected += 1
     
-    skipped = len(batch.readings) - len(readings_by_date) - rejected
+    skipped = valid_readings - len(readings_by_date)
+    acknowledged = valid_readings if rejected == 0 and accepted == len(readings_by_date) else 0
     
     return ReadingsResponse(
         accepted=accepted,
         rejected=rejected,
+        acknowledged=acknowledged,
         message=f"Processed {len(batch.readings)} readings. "
                 f"{accepted} stored as daily actuals, {skipped} outside 9 PM window.",
     )

@@ -71,61 +71,27 @@ class ModelManager:
         """Load all available trained models from disk."""
         loaded = []
 
-        sarima_path = MODELS_DIR / "sarima.pkl"
-        if _SARIMA_AVAILABLE and sarima_path.exists():
-            self.sarima = SARIMAXModel(config.get("models", {}).get("sarima", {}))
-            self.sarima.load(str(sarima_path))
-            loaded.append("sarima")
+        # Legacy SARIMA/LightGBM artifacts have no validated issue-time
+        # provenance or walk-forward evaluation. Do not load them for serving.
+        # TFT artifacts are also withheld until prospective sensor-backed
+        # evaluation. Loading a checkpoint is not evidence of skill.
 
-        lgbm_cfg = config.get("models", {}).get("lgbm", {})
-        if _LGBM_AVAILABLE:
-            for h in [1, 2, 3]:
-                lgbm_path = MODELS_DIR / f"lgbm_h{h}.pkl"
-                if lgbm_path.exists():
-                    m = LGBMForecastModel(lgbm_cfg, horizon=h)
-                    m.load(str(lgbm_path))
-                    self.lgbm_models[h] = m
-                    if "lgbm" not in loaded:
-                        loaded.append("lgbm")
-
-        if _TFT_AVAILABLE:
-            tft_ckpt = MODELS_DIR / "tft.ckpt"
-            tft_meta = MODELS_DIR / "tft.meta.pkl"
-            if tft_ckpt.exists() and tft_meta.exists():
-                try:
-                    tft_cfg = config.get("models", {}).get("tft", {})
-                    self.tft = TFTModel(tft_cfg)
-                    self.tft.load(str(MODELS_DIR / "tft.pkl"))
-                    loaded.append("tft")
-                except Exception as e:
-                    print(f"[ModelManager] Failed to load TFT: {e}")
-                    self.tft = None
-
-        ens_path = MODELS_DIR / "ensemble.pkl"
-        if _ENSEMBLE_AVAILABLE and ens_path.exists():
-            ens_cfg = config.get("models", {}).get("ensemble", {})
-            self.ensemble = EnsembleStacker(ens_cfg)
-            self.ensemble.load(str(ens_path))
-            loaded.append("ensemble")
+        # Old ensemble artifacts were trained with held-out test labels.
+        # Do not serve them until a clean out-of-fold stacker is implemented.
 
         results_path = MODELS_DIR / "results.json"
         if results_path.exists():
             with open(results_path) as f:
                 self._results = json.load(f)
+                self._results.pop("ensemble", None)
+                self._results.pop("lgbm", None)
+                self._results.pop("sarima", None)
 
         self.is_loaded = len(loaded) > 0
         print(f"[ModelManager] Loaded models: {loaded if loaded else 'none'}")
 
     def get_best_model_name(self) -> str:
         """Return the name of the best available model."""
-        if self.ensemble and self.ensemble.is_fitted:
-            return "ensemble"
-        if self.tft and self.tft.is_fitted:
-            return "tft"
-        if self.lgbm_models:
-            return "lgbm"
-        if self.sarima and self.sarima.is_fitted:
-            return "sarima"
         return "placeholder"
 
     def forecast(self, days: int = 3) -> List[Dict[str, Any]]:
@@ -237,20 +203,5 @@ class ModelManager:
         return self._results
 
     def _placeholder_forecast(self, days: int) -> List[Dict[str, Any]]:
-        """Fallback when no models are trained."""
-        try:
-            processed = load_processed()
-            recent_temp = float(processed["temp_c"].iloc[-1])
-        except Exception:
-            recent_temp = 26.0
-
-        forecasts = []
-        for h in range(1, days + 1):
-            forecasts.append({
-                "horizon": h,
-                "predicted_temp_c": round(recent_temp, 2),
-                "lower_bound_c": round(recent_temp - 2.0, 2),
-                "upper_bound_c": round(recent_temp + 2.0, 2),
-                "model_used": "climatology",
-            })
-        return forecasts
+        """No invented temperatures: API owns explicit regional fallback."""
+        return []

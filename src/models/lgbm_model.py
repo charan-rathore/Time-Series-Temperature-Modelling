@@ -90,7 +90,7 @@ class LGBMForecastModel(BaseModel):
 
         train_set = lgb.Dataset(X_train, label=y_train)
 
-        if val_df is not None:
+        if val_df is not None and len(val_df) > self.horizon:
             shifted_val = val_df[TARGET_COL].shift(-self.horizon)
             val_mask = shifted_val.notna()
             y_val = shifted_val[val_mask].values

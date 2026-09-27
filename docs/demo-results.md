@@ -1,4 +1,4 @@
-# Demo Evaluation Results
+# Historical Demo Evaluation Results - Not Validated
 
 Real temperature dataset from the **Open-Meteo Historical Archive** (public, no API key):
 
@@ -10,7 +10,9 @@ Real temperature dataset from the **Open-Meteo Historical Archive** (public, no 
 
 Machine-readable copy: [demo-results.json](demo-results.json)
 
-## Day-1 holdout vs industry-style benchmarks
+**Do not use these numbers to claim forecast performance.** The ensemble stacker was fitted on the held-out test labels and then scored on a row from that same set. The other model and baseline results have not yet passed independent rolling evaluation. The rows below are retained for audit, not endorsement.
+
+## Original reported Day-1 holdout results (unverified)
 
 | Model | N | MAE (°C) | RMSE (°C) | MAPE (%) | Skill vs climatology |
 |---|---:|---:|---:|---:|---:|
@@ -34,16 +36,17 @@ Machine-readable copy: [demo-results.json](demo-results.json)
 
 - **Persistence / API lag-1:** naive operational baselines used widely in weather verification.
 - **Climatology / seasonal climatology:** standard reference forecasts; skill score is relative to train-mean climatology.
-- **ThermoSense models:** trained on the same Open-Meteo Bangalore series with the project feature pipeline.
+- **ThermoSense historical model outputs:** calculations were made on an Open-Meteo Bangalore series but do not establish an operational forecast advantage.
 
-On this holdout window, LightGBM and the Ensemble beat persistence and climatology on Day-1 MAE/RMSE. Ensemble numbers are very strong on a small 14-day test window and should be treated as a demo score, not a production guarantee; longer rolling evaluation is recommended once live sensor ground truth accumulates.
+The ensemble score is invalid, not a production guarantee. The leaderboard is uninitialized and no live sensor data is present on the public demo. Run leakage-free rolling evaluations against observations from an actual site before making any accuracy comparison.
 
 ## Reproduce
 
 ```bash
 python3 scripts/run_pipeline.py --mode backfill
 # rebuild clean continuous archive window if needed, then:
-python3 scripts/train_models.py --models sarima lgbm ensemble --no-mlflow
+python3 scripts/audit_observations.py  # same-time archive audit, not a forecast score
+python3 scripts/backtest_legacy.py     # simple walk-forward legacy baselines
 ```
 
 Live UI: https://thermosense-black.vercel.app

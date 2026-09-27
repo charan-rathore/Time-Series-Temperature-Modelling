@@ -60,7 +60,7 @@ export default function Metrics() {
     return (
       <div className="empty-state">
         <Target style={{ width: 48, height: 48 }} />
-        <p>No model metrics available. Train models first.</p>
+        <p>No verified model metrics available yet. See the ground-truth audit before claiming forecast accuracy.</p>
       </div>
     );
   }
@@ -108,11 +108,12 @@ export default function Metrics() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2>Model Metrics</h2>
-          <p>{data.location} · {models.length} model{models.length !== 1 ? 's' : ''} evaluated on held-out test data</p>
+          <p>{data.location} · Historical, unverified evaluation ({models.length} models), not live sensor accuracy</p>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={load}><RefreshCw /></button>
       </div>
 
+      <div className="info-box" style={{ marginBottom: 20 }}>Historical results need independent rolling validation before any performance claim. The leaked ensemble score is excluded. The requested 30-day window is not recalculated, and no live model is loaded on the public Vercel site.</div>
       {/* Metric glossary */}
       <div className="card" style={{ marginBottom: 24 }}>
         <div className="card-header">
@@ -133,9 +134,9 @@ export default function Metrics() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Trophy style={{ color: 'var(--success)', width: 24 }} />
           <div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Best Model: {bestModel.name}</div>
+            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Lowest stored error (historical, unverified): {bestModel.name}</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Day-1 RMSE: {bestModel.rmse.toFixed(4)}°C - lowest next-day prediction error on test data
+              Day-1 RMSE: {bestModel.rmse.toFixed(4)}°C - not a verified live performance claim
             </div>
           </div>
         </div>
