@@ -16,8 +16,11 @@ RESULTS_PATH = _PROJECT_ROOT / "models" / "results.json"
 class HorizonMetrics(BaseModel):
     mae: float = 0.0
     rmse: float = 0.0
-    mape: float = 0.0
-    skill_score: float = 0.0
+    mape: Optional[float] = None
+    skill_score: Optional[float] = None
+    skill_score_status: str = "unavailable"
+    mape_status: str = "unavailable"
+    n_observations: int = 0
     coverage_90pct: Optional[float] = None
 
 
@@ -65,11 +68,14 @@ def get_metrics(request: Request, window_days: int = 30):
                 model_metrics[model_name][horizon_key] = HorizonMetrics(
                     mae=metrics.get("mae", 0.0),
                     rmse=metrics.get("rmse", 0.0),
-                    mape=metrics.get("mape", 0.0),
-                    skill_score=metrics.get("skill_score", 0.0),
+                    mape=metrics.get("mape"),
+                    mape_status=metrics.get("mape_status", "available" if metrics.get("mape") is not None else "unavailable"),
+                    skill_score=metrics.get("skill_score"),
+                    skill_score_status=metrics.get("skill_score_status", "available" if metrics.get("skill_score") is not None else "unavailable"),
+                    n_observations=metrics.get("n_observations", 0),
                     coverage_90pct=metrics.get("coverage_90pct"),
                 )
-                n_obs = max(n_obs, 1)
+                n_obs = max(n_obs, metrics.get("n_observations", 0))
 
     if not model_metrics:
         placeholder = HorizonMetrics()
