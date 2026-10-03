@@ -357,7 +357,13 @@ def log_to_mlflow(
 
             for horizon_key, metrics in horizons.items():
                 for metric_name, value in metrics.items():
-                    mlflow.log_metric(f"{horizon_key}_{metric_name}", value)
+                    key = f"{horizon_key}_{metric_name}"
+                    if isinstance(value, str) and metric_name.endswith("_status"):
+                        mlflow.set_tag(key, value)
+                    elif isinstance(value, (int, float, np.number)) and not isinstance(value, (bool, np.bool_)) and np.isfinite(value):
+                        mlflow.log_metric(key, float(value))
+                    # Undefined metrics are None, not zero. Do not log them as
+                    # numeric measurements or allow nonfinite values into MLflow.
 
             model_path = MODELS_DIR / f"{model_name}.pkl"
             if model_path.exists():
