@@ -386,7 +386,7 @@ def print_comparison_table(all_results: dict) -> None:
               f"{d2.get('rmse', float('nan')):>12.3f} "
               f"{d3.get('rmse', float('nan')):>12.3f} "
               f"{d1.get('mae', float('nan')):>12.3f} "
-              f"{d1.get('skill_score', float('nan')):>8.3f}")
+              f"{(d1.get('skill_score') if d1.get('skill_score') is not None else float('nan')):>8.3f}")
 
     results_path = MODELS_DIR / "results.json"
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
