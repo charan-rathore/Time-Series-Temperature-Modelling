@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 load_dotenv()
 
@@ -99,6 +99,18 @@ app.include_router(metrics.router, prefix="/metrics", tags=["Metrics (legacy)"],
 @app.get("/api/health", tags=["Health"])
 def health():
     return {"status": "ok", "version": "2.0.0"}
+
+
+@app.get("/api/ready", tags=["Health"])
+def readiness():
+    """Readiness for model-backed forecasts, not merely a running process."""
+    manager = getattr(app.state, "model_manager", None)
+    checks = {
+        "config": bool(getattr(app.state, "config", None)),
+        "models": bool(manager and manager.is_loaded),
+    }
+    ready = all(checks.values())
+    return JSONResponse({"ready": ready, "checks": checks}, status_code=200 if ready else 503)
 
 
 @app.get("/health", tags=["Health"], include_in_schema=False)
