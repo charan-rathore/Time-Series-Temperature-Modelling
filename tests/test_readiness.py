@@ -94,3 +94,23 @@ def test_duplicate_calendar_dates_are_not_ready(monkeypatch):
     monkeypatch.setattr(app.state,"config",{"location":{"name":"Test"}},raising=False)
     monkeypatch.setattr(app.state,"model_manager",SimpleNamespace(is_loaded=True),raising=False)
     assert TestClient(app).get("/api/ready").status_code == 503
+
+@pytest.mark.parametrize("kind",["null","numeric_string"])
+def test_temperature_normalization_matches_feature_input(monkeypatch,kind):
+    import pandas as pd
+    import numpy as np
+    from src.data import preprocess
+    df=pd.DataFrame({"date":pd.date_range("2026-01-01",periods=60),"temp_c":np.arange(60,dtype=float)+20})
+    if kind=="null":df.loc[2,"temp_c"]=np.nan
+    else:df["temp_c"]=df["temp_c"].astype(str)
+    from src.features import engineer
+    build = engineer.build_feature_matrix
+    def checked_build(frame, **kwargs):
+        if kind == "numeric_string":
+            assert pd.api.types.is_numeric_dtype(frame["temp_c"])
+        return build(frame, **kwargs)
+    monkeypatch.setattr(engineer,"build_feature_matrix",checked_build)
+    monkeypatch.setattr(preprocess,"load_processed",lambda:df)
+    monkeypatch.setattr(app.state,"config",{"location":{"name":"Test"}},raising=False)
+    monkeypatch.setattr(app.state,"model_manager",SimpleNamespace(is_loaded=True),raising=False)
+    assert TestClient(app).get("/api/ready").status_code == 200
