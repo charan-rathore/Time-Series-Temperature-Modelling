@@ -118,7 +118,9 @@ def readiness():
         if not processed.empty and {"date", "temp_c"}.issubset(processed.columns):
             dates = pd.to_datetime(processed["date"], errors="coerce")
             temperatures = pd.to_numeric(processed["temp_c"], errors="coerce")
-            if dates.notna().all() and not dates.dt.normalize().duplicated().any() and np.isfinite(temperatures).all():
+            if dates.notna().all() and not dates.dt.normalize().duplicated().any() and np.isfinite(temperatures.dropna()).all():
+                processed = processed.copy()
+                processed["temp_c"] = temperatures
                 features = build_feature_matrix(processed, drop_na=True)
                 numeric = features.select_dtypes(include="number")
                 required_rows = 1  # LightGBM uses features.tail(1).
