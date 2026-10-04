@@ -67,3 +67,30 @@ def test_readiness_reads_actual_parquet_file(monkeypatch,tmp_path,kind):
     monkeypatch.setattr(app.state,"model_manager",SimpleNamespace(is_loaded=True),raising=False)
     response=TestClient(app).get("/api/ready")
     assert response.status_code == (200 if kind=="valid" else 503)
+
+@pytest.mark.parametrize("model,rows,ready",[("sarima",15,False),("sarima",16,False),("sarima",17,True),("lgbm",15,True),("tft",45,False),("tft",46,False),("tft",47,True),("tft-short",24,False),("tft-short",25,True)])
+def test_engineered_history_covers_model_and_three_day_horizon(monkeypatch,model,rows,ready):
+    import numpy as np
+    import pandas as pd
+    from src.data import preprocess
+    manager=SimpleNamespace(is_loaded=True,sarima=None,tft=None,lgbm_models={})
+    if model=="sarima":manager.sarima=SimpleNamespace(is_fitted=True)
+    elif model.startswith("tft"):
+        encoder=8 if model=="tft-short" else 30
+        manager.tft=SimpleNamespace(is_fitted=True,config={"max_encoder_length":encoder},train_dataset=None)
+    else:manager.lgbm_models={1:object()}
+    monkeypatch.setattr(app.state,"config",{"location":{"name":"Test"}},raising=False)
+    monkeypatch.setattr(app.state,"model_manager",manager,raising=False)
+    monkeypatch.setattr(preprocess,"load_processed",lambda:pd.DataFrame({"date":pd.date_range("2026-01-01",periods=rows),"temp_c":np.arange(rows)+20.}))
+    assert TestClient(app).get("/api/ready").status_code == (200 if ready else 503)
+
+def test_duplicate_calendar_dates_are_not_ready(monkeypatch):
+    import pandas as pd
+    import numpy as np
+    from src.data import preprocess
+    df=pd.DataFrame({"date":pd.date_range("2026-01-01",periods=35),"temp_c":np.arange(35)+20.})
+    df.loc[20,"date"]=df.loc[19,"date"]
+    monkeypatch.setattr(preprocess,"load_processed",lambda:df)
+    monkeypatch.setattr(app.state,"config",{"location":{"name":"Test"}},raising=False)
+    monkeypatch.setattr(app.state,"model_manager",SimpleNamespace(is_loaded=True),raising=False)
+    assert TestClient(app).get("/api/ready").status_code == 503
