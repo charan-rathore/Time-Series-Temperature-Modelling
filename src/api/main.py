@@ -105,9 +105,30 @@ def health():
 def readiness():
     """Readiness for model-backed forecasts, not merely a running process."""
     manager = getattr(app.state, "model_manager", None)
+    config = getattr(app.state, "config", None)
+    location = config.get("location") if isinstance(config, dict) else None
+    name = location.get("name") if isinstance(location, dict) else None
+    data_ready = False
+    try:
+        import numpy as np
+        import pandas as pd
+        from src.data.preprocess import load_processed
+        from src.features.engineer import build_feature_matrix
+        processed = load_processed()
+        if not processed.empty and {"date", "temp_c"}.issubset(processed.columns):
+            dates = pd.to_datetime(processed["date"], errors="coerce")
+            temperatures = pd.to_numeric(processed["temp_c"], errors="coerce")
+            if dates.notna().all() and np.isfinite(temperatures).all():
+                features = build_feature_matrix(processed, drop_na=True)
+                numeric = features.select_dtypes(include="number")
+                data_ready = not features.empty and np.isfinite(numeric.to_numpy()).all()
+    except Exception:
+        # Match inference preparation without leaking file paths or data in the probe.
+        pass
     checks = {
-        "config": bool(getattr(app.state, "config", None)),
+        "config": isinstance(name, str) and bool(name.strip()),
         "models": bool(manager and manager.is_loaded),
+        "data": bool(data_ready),
     }
     ready = all(checks.values())
     return JSONResponse({"ready": ready, "checks": checks}, status_code=200 if ready else 503)
