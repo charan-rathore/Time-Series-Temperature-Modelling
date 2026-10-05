@@ -299,6 +299,8 @@ class SensorHTTPHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(data, indent=2).encode())
     
     def do_GET(self):
+        from urllib.parse import parse_qs, urlparse
+        parsed = urlparse(self.path)
         if self.path == "/health":
             self._send_json({"status": "ok", "sensor_available": SENSOR_AVAILABLE})
         
@@ -309,8 +311,15 @@ class SensorHTTPHandler(BaseHTTPRequestHandler):
             else:
                 self._send_json({"error": "No readings available"}, 404)
         
-        elif self.path == "/unsynced":
-            readings = get_unsynced_readings(self.db_path)
+        elif parsed.path == "/unsynced":
+            try:
+                limit = int(parse_qs(parsed.query).get("limit", ["1000"])[0])
+                if not 1 <= limit <= 1000:
+                    raise ValueError("limit out of range")
+            except ValueError:
+                self._send_json({"error": "limit must be between 1 and 1000"}, 400)
+                return
+            readings = get_unsynced_readings(self.db_path, limit=limit)
             self._send_json({"count": len(readings), "readings": readings})
         
         elif self.path == "/stats":
