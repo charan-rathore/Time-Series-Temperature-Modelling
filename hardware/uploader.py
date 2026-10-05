@@ -51,7 +51,7 @@ DEFAULT_UPLOAD_INTERVAL = 900  # 15 minutes
 def fetch_unsynced_readings(sensor_url: str, limit: int = 1000) -> List[Dict[str, Any]]:
     """Fetch unsynced readings from the local sensor daemon."""
     try:
-        resp = requests.get(f"{sensor_url}/unsynced", timeout=10)
+        resp = requests.get(f"{sensor_url}/unsynced", params={"limit": limit}, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         return data.get("readings", [])
@@ -200,7 +200,7 @@ def run_once(
         total_stats["failed"] += batch_stats["failed"]
         total_stats["batches"] += 1
         
-        if batch_stats["fetched"] < batch_size:
+        if batch_stats["marked_synced"] == 0 or batch_stats["fetched"] < batch_size:
             break
     
     return total_stats
