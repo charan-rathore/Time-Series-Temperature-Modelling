@@ -21,8 +21,8 @@ router = APIRouter()
 
 class SensorReading(BaseModel):
     timestamp: str = Field(..., description="ISO 8601 timestamp")
-    temp_c: float = Field(..., description="Temperature in Celsius")
-    humidity_pct: Optional[float] = Field(None, description="Relative humidity percentage")
+    temp_c: float = Field(..., allow_inf_nan=False, description="Temperature in Celsius")
+    humidity_pct: Optional[float] = Field(None, allow_inf_nan=False, description="Relative humidity percentage")
     source: str = Field("dht22_sensor", description="Data source identifier")
 
 
