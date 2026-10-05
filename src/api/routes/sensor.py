@@ -133,8 +133,13 @@ def get_sensor_history(
     if not _DB_PATH.exists():
         return {"readings": [], "count": 0}
     
-    start = date.fromisoformat(start_date) if start_date else date.today() - timedelta(days=limit)
-    end = date.fromisoformat(end_date) if end_date else date.today()
+    try:
+        start = date.fromisoformat(start_date) if start_date else date.today() - timedelta(days=limit)
+        end = date.fromisoformat(end_date) if end_date else date.today()
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Dates must use YYYY-MM-DD format")
+    if start > end:
+        raise HTTPException(status_code=422, detail="Start date must not be after end date")
     
     conn = sqlite3.connect(str(_DB_PATH))
     conn.row_factory = sqlite3.Row
