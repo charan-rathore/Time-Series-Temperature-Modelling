@@ -85,25 +85,32 @@ def _get_with_retry(
     Retries on connection errors, timeouts, and 429/5xx HTTP responses.
     Raises the last exception if all retries are exhausted.
     """
+    if max_retries < 1:
+        raise ValueError("max_retries must be at least one")
     delay = 2
     last_exc: Optional[Exception] = None
     for attempt in range(1, max_retries + 1):
+        wait = delay
         try:
             resp = requests.get(url, params=params, timeout=timeout)
             if resp.status_code == 429:
-                wait = int(resp.headers.get("Retry-After", delay))
-                print(f"[fetcher] Rate-limited. Waiting {wait}s (attempt {attempt})…")
-                time.sleep(wait)
-                delay *= 2
-                continue
+                try:
+                    wait = max(0, min(60, int(resp.headers.get("Retry-After", delay))))
+                except (TypeError, ValueError):
+                    wait = delay
             resp.raise_for_status()
             return resp.json()
+        except requests.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            if status is not None and status != 429 and not 500 <= status < 600:
+                raise
+            last_exc = exc
         except (requests.RequestException, ValueError) as exc:
             last_exc = exc
-            if attempt < max_retries:
-                print(f"[fetcher] Attempt {attempt} failed: {exc}. Retrying in {delay}s…")
-                time.sleep(delay)
-                delay *= 2
+        if attempt < max_retries:
+            print(f"[fetcher] Attempt {attempt} failed. Retrying in {wait}s…")
+            time.sleep(wait)
+            delay = min(60, delay * 2)
     raise RuntimeError(f"[fetcher] All {max_retries} retries failed.") from last_exc
 
 
