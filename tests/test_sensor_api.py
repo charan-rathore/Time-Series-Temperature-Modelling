@@ -5,7 +5,7 @@ Tests the sensor reading upload and retrieval endpoints.
 """
 
 import tempfile
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -139,9 +139,9 @@ class TestSensorHistory:
             "/api/sensor/readings",
             json={
                 "readings": [
-                    {"timestamp": "2026-05-05T21:00:00Z", "temp_c": 26.0},
-                    {"timestamp": "2026-05-06T21:00:00Z", "temp_c": 27.0},
-                    {"timestamp": "2026-05-07T21:00:00Z", "temp_c": 28.0},
+                    {"timestamp": (date.today() - timedelta(days=2)).isoformat() + "T21:00:00Z", "temp_c": 26.0},
+                    {"timestamp": (date.today() - timedelta(days=1)).isoformat() + "T21:00:00Z", "temp_c": 27.0},
+                    {"timestamp": (date.today() - timedelta(days=0)).isoformat() + "T21:00:00Z", "temp_c": 28.0},
                 ]
             }
         )

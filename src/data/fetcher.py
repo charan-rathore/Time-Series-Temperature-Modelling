@@ -200,7 +200,7 @@ def fetch_historical_open_meteo(
     if save_raw:
         fname = f"open_meteo_historical_{start_date}_{end_date}.json"
         path = _save_raw(payload, fname)
-        print(f"[fetcher] Raw response saved → {path.relative_to(_PROJECT_ROOT)}")
+        print(f"[fetcher] Raw response saved → {os.path.relpath(path, _PROJECT_ROOT)}")
 
     df = _parse_hourly_to_df(payload["hourly"], HOURLY_VARS)
     daily = _resample_to_9pm(df)
@@ -252,7 +252,7 @@ def fetch_forecast_open_meteo(
     if save_raw:
         today_str = date.today().isoformat()
         path = _save_raw(payload, f"open_meteo_forecast_{today_str}.json")
-        print(f"[fetcher] Raw response saved → {path.relative_to(_PROJECT_ROOT)}")
+        print(f"[fetcher] Raw response saved → {os.path.relpath(path, _PROJECT_ROOT)}")
 
     df = _parse_hourly_to_df(payload["hourly"], HOURLY_VARS)
     daily = _resample_to_9pm(df)
@@ -301,7 +301,7 @@ def fetch_owm_current(
     if save_raw:
         today_str = datetime.utcnow().strftime("%Y-%m-%dT%H%M")
         path = _save_raw(payload, f"owm_current_{today_str}.json")
-        print(f"[fetcher] Raw OWM response saved → {path.relative_to(_PROJECT_ROOT)}")
+        print(f"[fetcher] Raw OWM response saved → {os.path.relpath(path, _PROJECT_ROOT)}")
 
     return {
         "temp_c": float(payload["main"]["temp"]),

@@ -127,7 +127,7 @@ class TestLeaderboard:
     def test_computes_rankings(self, temp_db):
         """Should compute correct RMSE rankings."""
         for i in range(10):
-            d = date(2026, 5, 1) + timedelta(days=i)
+            d = date.today() - timedelta(days=9-i)
             
             store_actual(temp_db, d, sensor_temp_c=25.0)
             
@@ -159,11 +159,11 @@ class TestCollectionStatus:
     def test_reports_counts(self, temp_db):
         """Should report correct counts."""
         for i in range(5):
-            d = date(2026, 5, 1) + timedelta(days=i)
+            d = date.today() - timedelta(days=9-i)
             store_forecast(temp_db, d, "test", 1, 25.0)
         
         for i in range(3):
-            d = date(2026, 5, 1) + timedelta(days=i)
+            d = date.today() - timedelta(days=9-i)
             store_actual(temp_db, d, 25.0)
         
         status = get_collection_status(temp_db)
