@@ -119,7 +119,14 @@ def upload_readings_to_cloud(
         resp.raise_for_status()
         result = resp.json()
         
-        return result.get("accepted", len(readings)), []
+        accepted = result.get("accepted") if isinstance(result, dict) else None
+        rejected = result.get("rejected", 0) if isinstance(result, dict) else None
+        if type(accepted) is not int or accepted != len(readings) or type(rejected) is not int or rejected != 0:
+            # Aggregate counts cannot identify which IDs were stored. Keep all
+            # local rows for retry rather than silently discarding rejected data.
+            logger.warning("Cloud acknowledgement was incomplete or invalid; keeping local readings")
+            return 0, [r["id"] for r in readings]
+        return accepted, []
     
     except requests.HTTPError as e:
         if e.response is not None and e.response.status_code == 422:
