@@ -51,6 +51,7 @@ def upload_readings(batch: ReadingsBatch):
     rejected = 0
     
     readings_by_date = {}
+    distance_by_date = {}
     
     for reading in batch.readings:
         try:
@@ -63,16 +64,13 @@ def upload_readings(batch: ReadingsBatch):
         hour = ts.hour
         
         if 20 <= hour <= 22:
-            if reading_date not in readings_by_date:
+            # Cache each winning distance; do not reparse its timestamp for
+            # every new candidate in the batch.
+            distance = abs((hour - 21) * 3600 + ts.minute * 60 + ts.second + ts.microsecond / 1_000_000)
+            if reading_date not in readings_by_date or distance < distance_by_date[reading_date]:
                 readings_by_date[reading_date] = reading
-            else:
-                existing_ts = datetime.fromisoformat(
-                    readings_by_date[reading_date].timestamp.replace("Z", "+00:00")
-                )
-                existing_hour = existing_ts.hour
-                if abs(hour - 21) < abs(existing_hour - 21):
-                    readings_by_date[reading_date] = reading
-    
+                distance_by_date[reading_date] = distance
+
     for reading_date, reading in readings_by_date.items():
         if store_actual(
             _DB_PATH,
