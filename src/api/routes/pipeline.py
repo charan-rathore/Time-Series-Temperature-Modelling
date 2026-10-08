@@ -153,9 +153,9 @@ def run_training(payload: TrainRequest = TrainRequest()):
             raise HTTPException(400, "Training is already running")
 
     allowed = {"sarima", "lgbm", "tft", "ensemble"}
-    models = [m for m in payload.models if m in allowed]
-    if not models:
-        raise HTTPException(400, f"No valid models specified. Choose from: {sorted(allowed)}")
+    models = payload.models
+    if not models or not allowed.issuperset(models):
+        raise HTTPException(400, f"Every model must be valid. Choose from: {sorted(allowed)}")
 
     cmd = [sys.executable, "scripts/train_models.py", "--models"] + models
     if payload.skip_mlflow:
