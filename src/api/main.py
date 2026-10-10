@@ -153,7 +153,10 @@ def health_legacy():
 
 
 if FRONTEND_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR / "static")), name="static")
+    # Vercel-style public/ output has no static/ folder; mounting it would
+    # raise RuntimeError at import time and take the whole API down.
+    if (FRONTEND_DIR / "static").is_dir():
+        app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR / "static")), name="static")
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):

@@ -48,3 +48,25 @@ def test_spa_fallback_does_not_serve_files_outside_the_frontend_dir(spa_client):
         assert response.status_code == 200, vector
         assert response.text == SPA_SHELL, f"traversal via {vector} served outside content"
         assert response.text != readme
+
+
+@pytest.fixture
+def spa_client_no_static():
+    """public/ with an index.html but no static/ subdirectory."""
+    public = PROJECT_ROOT / "public"
+    assert not public.exists(), "test expects no pre-existing public/ directory"
+    public.mkdir()
+    (public / "index.html").write_text(SPA_SHELL)
+    yield public
+    shutil.rmtree(public, ignore_errors=True)
+    importlib.reload(main_module)
+
+
+def test_app_serves_spa_when_frontend_has_no_static_dir(spa_client_no_static):
+    # Vercel-style public/ output has no static/ folder; mounting /static
+    # unconditionally must not crash the app at import time.
+    reloaded = importlib.reload(main_module)
+    client = TestClient(reloaded.app, raise_server_exceptions=False)
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.text == SPA_SHELL
