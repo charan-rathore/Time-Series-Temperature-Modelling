@@ -73,12 +73,14 @@ class EnsembleStacker(BaseModel):
         steps: int = 3,
         base_predictions: Optional[Dict[str, np.ndarray]] = None,
         future_df: Optional[pd.DataFrame] = None,
+        start_horizon: int = 1,
     ) -> np.ndarray:
         """
         Generate ensemble predictions by stacking base model outputs.
 
         Args:
             steps: Number of forecast horizons to predict.
+            start_horizon: First trained horizon to use; defaults to Day 1.
             base_predictions: Dict mapping model_name → scalar prediction per model.
                 Each value should be a scalar or 1-element array.
         """
@@ -88,7 +90,7 @@ class EnsembleStacker(BaseModel):
             raise ValueError("base_predictions dict is required for ensemble inference.")
 
         results = []
-        for h in range(1, steps + 1):
+        for h in range(start_horizon, start_horizon + steps):
             if h not in self.meta_models:
                 raise ValueError(f"No meta-model fitted for horizon {h}.")
             preds_list = []
