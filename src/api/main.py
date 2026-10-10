@@ -157,10 +157,11 @@ if FRONTEND_DIR.exists():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
-        file_path = FRONTEND_DIR / full_path
-        if file_path.is_file():
+        frontend_root = FRONTEND_DIR.resolve()
+        file_path = (frontend_root / full_path).resolve()
+        if file_path.is_relative_to(frontend_root) and file_path.is_file():
             return FileResponse(str(file_path))
-        return FileResponse(str(FRONTEND_DIR / "index.html"))
+        return FileResponse(str(frontend_root / "index.html"))
 else:
     @app.get("/", tags=["Health"])
     def root():
