@@ -177,7 +177,7 @@ class ModelManager:
                         if name not in base_preds:
                             base_preds[name] = np.array([features["temp_c"].mean()])
                     try:
-                        ens_pred = self.ensemble.predict(steps=1, base_predictions=base_preds)
+                        ens_pred = self.ensemble.predict(steps=1, base_predictions=base_preds, start_horizon=horizon)
                         pred = float(ens_pred[0])
                     except Exception:
                         pass
