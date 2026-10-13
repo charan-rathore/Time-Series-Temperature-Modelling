@@ -39,5 +39,5 @@ def test_default_selection_still_starts(client):
 def test_running_job_still_rejects_another_launch(client, monkeypatch):
     http, thread = client
     monkeypatch.setattr(pipeline, "_job_store", {"train": {"status": "running"}})
-    assert http.post("/api/pipeline/train", json={"models": ["sarima"]}).status_code == 400
+    assert http.post("/api/pipeline/train", json={"models": ["sarima"]}).status_code == 409
     thread.assert_not_called()
