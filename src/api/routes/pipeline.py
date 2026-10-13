@@ -35,23 +35,38 @@ RESULTS_PATH = MODELS_DIR / "results.json"
 _job_store: Dict[str, Dict[str, Any]] = {}
 _job_lock = threading.Lock()
 _log_lines: List[str] = []
+_log_lock = threading.Lock()
 _LOG_MAX = 500
 
 
 def _append_log(line: str) -> None:
-    _log_lines.append(f"[{datetime.now().strftime('%H:%M:%S')}] {line}")
-    if len(_log_lines) > _LOG_MAX:
-        del _log_lines[: len(_log_lines) - _LOG_MAX]
+    with _log_lock:
+        _log_lines.append(f"[{datetime.now().strftime('%H:%M:%S')}] {line}")
+        if len(_log_lines) > _LOG_MAX:
+            del _log_lines[: len(_log_lines) - _LOG_MAX]
 
 
-def _run_script(job_id: str, cmd: List[str]) -> None:
+def _claim_job(job_id: str) -> bool:
+    """Atomically register a job as running; False when it already is.
+
+    The claim must land inside the same critical section as the check,
+    otherwise two concurrent POSTs both pass the check and spawn two
+    workers for the same job.
+    """
     with _job_lock:
+        existing = _job_store.get(job_id)
+        if existing and existing.get("status") == "running":
+            return False
         _job_store[job_id] = {
             "status": "running",
             "started_at": datetime.now().isoformat(),
             "finished_at": None,
             "exit_code": None,
         }
+        return True
+
+
+def _run_script(job_id: str, cmd: List[str]) -> None:
     _append_log(f"[{job_id}] Started: {' '.join(cmd)}")
     try:
         proc = subprocess.Popen(
@@ -117,9 +132,8 @@ class LogsResponse(BaseModel):
 
 @router.post("/backfill", response_model=JobResponse, summary="Run data backfill")
 def run_backfill(payload: BackfillRequest = BackfillRequest()):
-    with _job_lock:
-        if "backfill" in _job_store and _job_store["backfill"]["status"] == "running":
-            raise HTTPException(400, "Backfill is already running")
+    if not _claim_job("backfill"):
+        raise HTTPException(409, "Backfill is already running")
 
     cmd = [sys.executable, "scripts/run_pipeline.py", "--mode", "backfill"]
     if payload.start_date:
@@ -135,9 +149,8 @@ def run_backfill(payload: BackfillRequest = BackfillRequest()):
 
 @router.post("/daily", response_model=JobResponse, summary="Run daily update")
 def run_daily():
-    with _job_lock:
-        if "daily" in _job_store and _job_store["daily"]["status"] == "running":
-            raise HTTPException(400, "Daily update is already running")
+    if not _claim_job("daily"):
+        raise HTTPException(409, "Daily update is already running")
 
     cmd = [sys.executable, "scripts/run_pipeline.py", "--mode", "daily"]
     thread = threading.Thread(target=_run_script, args=("daily", cmd), daemon=True)
@@ -148,14 +161,13 @@ def run_daily():
 
 @router.post("/train", response_model=JobResponse, summary="Train models")
 def run_training(payload: TrainRequest = TrainRequest()):
-    with _job_lock:
-        if "train" in _job_store and _job_store["train"]["status"] == "running":
-            raise HTTPException(400, "Training is already running")
-
     allowed = {"sarima", "lgbm", "tft", "ensemble"}
     models = payload.models
     if not models or not allowed.issuperset(models):
         raise HTTPException(400, f"Every model must be valid. Choose from: {sorted(allowed)}")
+
+    if not _claim_job("train"):
+        raise HTTPException(409, "Training is already running")
 
     cmd = [sys.executable, "scripts/train_models.py", "--models"] + models
     if payload.skip_mlflow:
@@ -220,7 +232,9 @@ def get_status(request: Request):
 @router.get("/logs", response_model=LogsResponse, summary="Recent pipeline logs")
 def get_logs(tail: int = 100):
     tail = min(tail, _LOG_MAX)
-    return LogsResponse(lines=_log_lines[-tail:], total=len(_log_lines))
+    with _log_lock:
+        lines = list(_log_lines)
+    return LogsResponse(lines=lines[-tail:], total=len(lines))
 
 
 class MLflowRun(BaseModel):
