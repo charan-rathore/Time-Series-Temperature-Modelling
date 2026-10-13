@@ -21,8 +21,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter()
 
@@ -104,6 +104,17 @@ class BackfillRequest(BaseModel):
     start_date: Optional[str] = Field(None, description="Start date YYYY-MM-DD")
     end_date: Optional[str] = Field(None, description="End date YYYY-MM-DD")
 
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def _real_iso_date(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        try:
+            date.fromisoformat(value)
+        except ValueError:
+            raise ValueError("dates must be real YYYY-MM-DD dates")
+        return value
+
 
 class TrainRequest(BaseModel):
     models: List[str] = Field(
@@ -132,6 +143,12 @@ class LogsResponse(BaseModel):
 
 @router.post("/backfill", response_model=JobResponse, summary="Run data backfill")
 def run_backfill(payload: BackfillRequest = BackfillRequest()):
+    if (
+        payload.start_date
+        and payload.end_date
+        and payload.start_date > payload.end_date
+    ):
+        raise HTTPException(400, "start_date must not be after end_date")
     if not _claim_job("backfill"):
         raise HTTPException(409, "Backfill is already running")
 
@@ -230,8 +247,7 @@ def get_status(request: Request):
 
 
 @router.get("/logs", response_model=LogsResponse, summary="Recent pipeline logs")
-def get_logs(tail: int = 100):
-    tail = min(tail, _LOG_MAX)
+def get_logs(tail: int = Query(100, ge=1, le=_LOG_MAX)):
     with _log_lock:
         lines = list(_log_lines)
     return LogsResponse(lines=lines[-tail:], total=len(lines))
@@ -258,7 +274,7 @@ class MLflowResponse(BaseModel):
 
 
 @router.get("/mlflow", response_model=MLflowResponse, summary="MLflow experiment runs")
-def get_mlflow_runs(limit: int = 20):
+def get_mlflow_runs(limit: int = Query(20, ge=1, le=100)):
     mlruns_path = _PROJECT_ROOT / "mlruns"
     try:
         import mlflow
