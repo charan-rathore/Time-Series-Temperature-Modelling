@@ -69,7 +69,12 @@ def test_forecast_response_has_bounds():
     assert fc["lower_bound_c"] <= fc["predicted_temp_c"] <= fc["upper_bound_c"]
 
 
-def test_feedback_valid():
+def test_feedback_valid(tmp_path, monkeypatch):
+    import pandas as pd
+    from src.api.routes import forecast
+    path = tmp_path / "feedback.parquet"
+    pd.DataFrame({"date": [pd.Timestamp("2024-07-11")], "temp_c": [26.0]}).to_parquet(path)
+    monkeypatch.setattr(forecast, "PROCESSED_PATH", path)
     response = client.post("/forecast/feedback", json={
         "date": "2024-07-11",
         "actual_temp_c": 27.0

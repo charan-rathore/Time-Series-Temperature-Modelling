@@ -125,31 +125,32 @@ def post_feedback(payload: FeedbackRequest, request: Request):
 
     bias_updated = False
     try:
-        if PROCESSED_PATH.exists():
-            df = pd.read_parquet(PROCESSED_PATH)
-            obs_dt = pd.Timestamp(obs_date)
+        if not PROCESSED_PATH.exists():
+            raise FileNotFoundError("Processed observation store is unavailable")
+        df = pd.read_parquet(PROCESSED_PATH)
+        obs_dt = pd.Timestamp(obs_date)
 
-            if obs_dt in df["date"].values:
-                idx = df.index[df["date"] == obs_dt][0]
-                old_temp = df.at[idx, "temp_c"]
-                df.at[idx, "temp_c"] = payload.actual_temp_c
-                df.at[idx, "is_sensor_reading"] = True
-                if "temp_c_api" in df.columns and pd.notna(df.at[idx, "temp_c_api"]):
-                    df.at[idx, "api_bias"] = payload.actual_temp_c - df.at[idx, "temp_c_api"]
-                    bias_updated = True
-            else:
-                new_row = pd.DataFrame([{
-                    "date": obs_dt,
-                    "temp_c": payload.actual_temp_c,
-                    "is_sensor_reading": True,
-                    "gap_filled": False,
-                }])
-                df = pd.concat([df, new_row], ignore_index=True)
-                df = df.sort_values("date").reset_index(drop=True)
+        if obs_dt in df["date"].values:
+            idx = df.index[df["date"] == obs_dt][0]
+            df.at[idx, "temp_c"] = payload.actual_temp_c
+            df.at[idx, "is_sensor_reading"] = True
+            if "temp_c_api" in df.columns and pd.notna(df.at[idx, "temp_c_api"]):
+                df.at[idx, "api_bias"] = payload.actual_temp_c - df.at[idx, "temp_c_api"]
+                bias_updated = True
+        else:
+            new_row = pd.DataFrame([{
+                "date": obs_dt,
+                "temp_c": payload.actual_temp_c,
+                "is_sensor_reading": True,
+                "gap_filled": False,
+            }])
+            df = pd.concat([df, new_row], ignore_index=True)
+            df = df.sort_values("date").reset_index(drop=True)
 
-            df.to_parquet(PROCESSED_PATH, index=False)
+        df.to_parquet(PROCESSED_PATH, index=False)
     except Exception as e:
         print(f"[feedback] Error persisting observation: {e}")
+        raise HTTPException(status_code=503, detail="Observation could not be recorded; please retry") from e
 
     return FeedbackResponse(
         status="accepted",
