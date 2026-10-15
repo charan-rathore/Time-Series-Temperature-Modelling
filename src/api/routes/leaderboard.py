@@ -39,7 +39,7 @@ def leaderboard(
     improvement = None
     if thermosense_rank and best_commercial:
         ts = next(r for r in board if r["source"] == "thermosense")
-        if ts["rmse"] > 0 and best_commercial["rmse"] > 0:
+        if best_commercial["rmse"] > 0:
             improvement = round((1 - ts["rmse"] / best_commercial["rmse"]) * 100, 1)
     
     return {
@@ -83,7 +83,7 @@ def comparison(
                 by_date[d]["forecasts"][row["source"]] = {}
             by_date[d]["forecasts"][row["source"]][horizon_key] = {
                 "predicted": row["predicted"],
-                "error": round(row["error"], 2) if row["error"] else None,
+                "error": round(row["error"], 2) if row["error"] is not None else None,
             }
     
     return {
