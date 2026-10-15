@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from "react";
 import {
   RefreshCw,
   Trophy,
@@ -12,34 +12,51 @@ import {
   Target,
   CheckCircle,
   XCircle,
-} from 'lucide-react';
+} from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
-  LineChart, Line,
-} from 'recharts';
-import { api } from '../api';
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  Cell,
+  LineChart,
+  Line,
+} from "recharts";
+import { api } from "../api";
+import { comparisonSeries } from "../presentation";
 
 const SOURCE_COLORS = {
-  thermosense: '#22c55e',
-  open_meteo: '#3b82f6',
-  openweathermap: '#f59e0b',
-  accuweather: '#ef4444',
-  google: '#8b5cf6',
+  thermosense: "#276349",
+  open_meteo: "#346c80",
+  openweathermap: "#ab612c",
+  accuweather: "#b14035",
+  google: "#626fa4",
 };
 
 const SOURCE_NAMES = {
-  thermosense: 'ThermoSense',
-  open_meteo: 'Open-Meteo',
-  openweathermap: 'OpenWeatherMap',
-  accuweather: 'AccuWeather',
-  google: 'Google Weather',
+  thermosense: "ThermoSense",
+  open_meteo: "Open-Meteo",
+  openweathermap: "OpenWeatherMap",
+  accuweather: "AccuWeather",
+  google: "Google Weather",
 };
 
 function getRankIcon(rank) {
-  if (rank === 1) return <Trophy style={{ color: '#fbbf24', width: 20, height: 20 }} />;
-  if (rank === 2) return <Medal style={{ color: '#94a3b8', width: 18, height: 18 }} />;
-  if (rank === 3) return <Medal style={{ color: '#d97706', width: 18, height: 18 }} />;
-  return <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{rank}</span>;
+  if (rank === 1)
+    return <Trophy style={{ color: "#fbbf24", width: 20, height: 20 }} />;
+  if (rank === 2)
+    return <Medal style={{ color: "#94a3b8", width: 18, height: 18 }} />;
+  if (rank === 3)
+    return <Medal style={{ color: "#d97706", width: 18, height: 18 }} />;
+  return (
+    <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>
+      {rank}
+    </span>
+  );
 }
 
 export default function Leaderboard() {
@@ -70,10 +87,17 @@ export default function Leaderboard() {
     }
   }, [windowDays, horizon]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (loading) {
-    return <div className="loading-state"><div className="spinner" /><span>Loading leaderboard…</span></div>;
+    return (
+      <div className="loading-state">
+        <div className="spinner" />
+        <span>Loading leaderboard…</span>
+      </div>
+    );
   }
 
   if (error) {
@@ -81,7 +105,11 @@ export default function Leaderboard() {
       <div className="empty-state">
         <AlertCircle />
         <p>Failed to load leaderboard: {error}</p>
-        <button className="btn btn-secondary btn-sm" onClick={load} style={{ marginTop: 12 }}>
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={load}
+          style={{ marginTop: 12 }}
+        >
           <RefreshCw /> Retry
         </button>
       </div>
@@ -96,10 +124,24 @@ export default function Leaderboard() {
       <div className="empty-state">
         <Target style={{ width: 48, height: 48 }} />
         <p>Baseline collection not initialized.</p>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 8 }}>
-          Run <code style={{ background: 'var(--surface-elevated)', padding: '2px 6px', borderRadius: 4 }}>
+        <p
+          style={{
+            fontSize: "0.85rem",
+            color: "var(--text-secondary)",
+            marginTop: 8,
+          }}
+        >
+          Run{" "}
+          <code
+            style={{
+              background: "var(--surface-elevated)",
+              padding: "2px 6px",
+              borderRadius: 4,
+            }}
+          >
             python scripts/collect_baselines.py --init
-          </code> to set up the database.
+          </code>{" "}
+          to set up the database.
         </p>
       </div>
     );
@@ -113,84 +155,149 @@ export default function Leaderboard() {
           <p>Comparing ThermoSense vs commercial weather services</p>
         </div>
 
-        <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-          <Award style={{ width: 48, height: 48, color: 'var(--text-secondary)', marginBottom: 16 }} />
+        <div className="card" style={{ textAlign: "center", padding: 40 }}>
+          <Award
+            style={{
+              width: 48,
+              height: 48,
+              color: "var(--text-secondary)",
+              marginBottom: 16,
+            }}
+          />
           <h3 style={{ marginBottom: 8 }}>No Rankings Yet</h3>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
-            Need at least 3 days of forecasts AND actual sensor readings to compute rankings.
+          <p style={{ color: "var(--text-secondary)", marginBottom: 24 }}>
+            Need at least 3 days of forecasts AND actual sensor readings to
+            compute rankings.
           </p>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 400, margin: '0 auto' }}>
-            <div className="card" style={{ padding: 16, textAlign: 'left' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                {status?.forecast_count > 0 ? 
-                  <CheckCircle style={{ color: 'var(--success)', width: 16 }} /> : 
-                  <XCircle style={{ color: 'var(--text-secondary)', width: 16 }} />
-                }
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 16,
+              maxWidth: 400,
+              margin: "0 auto",
+            }}
+          >
+            <div className="card" style={{ padding: 16, textAlign: "left" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 8,
+                }}
+              >
+                {status?.forecast_count > 0 ? (
+                  <CheckCircle style={{ color: "var(--success)", width: 16 }} />
+                ) : (
+                  <XCircle
+                    style={{ color: "var(--text-secondary)", width: 16 }}
+                  />
+                )}
                 <span style={{ fontWeight: 600 }}>Forecasts</span>
               </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{status?.forecast_count || 0}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>stored</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
+                {status?.forecast_count || 0}
+              </div>
+              <div
+                style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}
+              >
+                stored
+              </div>
             </div>
-            
-            <div className="card" style={{ padding: 16, textAlign: 'left' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                {status?.actual_count > 0 ? 
-                  <CheckCircle style={{ color: 'var(--success)', width: 16 }} /> : 
-                  <XCircle style={{ color: 'var(--text-secondary)', width: 16 }} />
-                }
+
+            <div className="card" style={{ padding: 16, textAlign: "left" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 8,
+                }}
+              >
+                {status?.actual_count > 0 ? (
+                  <CheckCircle style={{ color: "var(--success)", width: 16 }} />
+                ) : (
+                  <XCircle
+                    style={{ color: "var(--text-secondary)", width: 16 }}
+                  />
+                )}
                 <span style={{ fontWeight: 600 }}>Actuals</span>
               </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{status?.actual_count || 0}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>sensor readings</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
+                {status?.actual_count || 0}
+              </div>
+              <div
+                style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}
+              >
+                sensor readings
+              </div>
             </div>
           </div>
 
-          <p style={{ marginTop: 24, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            Run <code style={{ background: 'var(--surface-elevated)', padding: '2px 6px', borderRadius: 4 }}>
+          <p
+            style={{
+              marginTop: 24,
+              fontSize: "0.85rem",
+              color: "var(--text-secondary)",
+            }}
+          >
+            Run{" "}
+            <code
+              style={{
+                background: "var(--surface-elevated)",
+                padding: "2px 6px",
+                borderRadius: 4,
+              }}
+            >
               python scripts/collect_baselines.py
-            </code> daily to collect forecasts.
+            </code>{" "}
+            daily to collect forecasts.
           </p>
         </div>
       </>
     );
   }
 
-  const thermosenseEntry = data.rankings.find(r => r.source === 'thermosense');
-  const bestCommercial = data.rankings.find(r => r.source !== 'thermosense');
+  const thermosenseEntry = data.rankings.find(
+    (r) => r.source === "thermosense",
+  );
+  const bestCommercial = data.rankings.find((r) => r.source !== "thermosense");
   const improvement = data.improvement_vs_best_commercial_pct;
 
-  const chartData = data.rankings.map(r => ({
+  const chartData = data.rankings.map((r) => ({
     source: SOURCE_NAMES[r.source] || r.source,
     rmse: r.rmse,
     mae: r.mae,
-    fill: SOURCE_COLORS[r.source] || '#666',
+    fill: SOURCE_COLORS[r.source] || "#666",
   }));
 
-  const comparisonChartData = comparison?.data?.slice(0, 14).reverse().map(d => {
-    const row = { date: d.date };
-    row.actual = d.actual_temp_c;
-    Object.entries(d.forecasts || {}).forEach(([source, horizons]) => {
-      if (horizons.day1) {
-        row[source] = horizons.day1.predicted;
-      }
-    });
-    return row;
-  }) || [];
+  const comparisonChartData = comparisonSeries(comparison?.data);
 
   return (
     <>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div
+        className="page-header"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+        }}
+      >
         <div>
           <h2>Live Accuracy Leaderboard</h2>
-          <p>Comparing ThermoSense vs commercial weather services · Updated daily</p>
+          <p>
+            Comparing ThermoSense vs commercial weather services · Updated daily
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select 
-            value={windowDays} 
-            onChange={e => setWindowDays(Number(e.target.value))}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select
+            value={windowDays}
+            onChange={(e) => setWindowDays(Number(e.target.value))}
+            aria-label="Comparison window"
             className="form-select"
-            style={{ width: 'auto' }}
+            style={{ width: "auto" }}
           >
             <option value={7}>Last 7 days</option>
             <option value={14}>Last 14 days</option>
@@ -198,42 +305,60 @@ export default function Leaderboard() {
             <option value={60}>Last 60 days</option>
             <option value={90}>Last 90 days</option>
           </select>
-          <select 
-            value={horizon} 
-            onChange={e => setHorizon(Number(e.target.value))}
+          <select
+            value={horizon}
+            onChange={(e) => setHorizon(Number(e.target.value))}
+            aria-label="Forecast horizon"
             className="form-select"
-            style={{ width: 'auto' }}
+            style={{ width: "auto" }}
           >
             <option value={1}>Day 1 (Tomorrow)</option>
             <option value={2}>Day 2</option>
             <option value={3}>Day 3</option>
           </select>
-          <button className="btn btn-secondary btn-sm" onClick={load}><RefreshCw /></button>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={load}
+            aria-label="Refresh"
+          >
+            <RefreshCw />
+          </button>
         </div>
       </div>
 
       {/* Improvement banner */}
       {thermosenseEntry && bestCommercial && improvement !== null && (
-        <div 
-          className="card" 
-          style={{ 
-            marginBottom: 24, 
-            background: improvement > 0 ? 'var(--success-soft)' : 'var(--warning-soft)',
-            borderColor: improvement > 0 ? 'var(--success)' : 'var(--warning)',
+        <div
+          className="card"
+          style={{
+            marginBottom: 24,
+            background:
+              improvement > 0 ? "var(--success-soft)" : "var(--warning-soft)",
+            borderColor: improvement > 0 ? "var(--success)" : "var(--warning)",
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {improvement > 0 ? 
-              <TrendingUp style={{ color: 'var(--success)', width: 32, height: 32 }} /> :
-              <TrendingDown style={{ color: 'var(--warning)', width: 32, height: 32 }} />
-            }
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            {improvement > 0 ? (
+              <TrendingUp
+                style={{ color: "var(--success)", width: 32, height: 32 }}
+              />
+            ) : (
+              <TrendingDown
+                style={{ color: "var(--warning)", width: 32, height: 32 }}
+              />
+            )}
             <div>
-              <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>
-                ThermoSense {improvement > 0 ? 'beats' : 'trails'} {SOURCE_NAMES[bestCommercial.source] || bestCommercial.source} by {Math.abs(improvement).toFixed(1)}%
+              <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>
+                ThermoSense {improvement > 0 ? "beats" : "trails"}{" "}
+                {SOURCE_NAMES[bestCommercial.source] || bestCommercial.source}{" "}
+                by {Math.abs(improvement).toFixed(1)}%
               </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Day-{horizon} RMSE: {thermosenseEntry.rmse}°C vs {bestCommercial.rmse}°C · 
-                Based on {thermosenseEntry.n_days} days of parallel forecasts
+              <div
+                style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}
+              >
+                Day-{horizon} RMSE: {thermosenseEntry.rmse}°C vs{" "}
+                {bestCommercial.rmse}°C · Based on {thermosenseEntry.n_days}{" "}
+                days of parallel forecasts
               </div>
             </div>
           </div>
@@ -245,27 +370,43 @@ export default function Leaderboard() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">ThermoSense Rank</span>
-            <div className="stat-icon green"><Trophy /></div>
+            <div className="stat-icon green">
+              <Trophy />
+            </div>
           </div>
-          <div className="stat-value" style={{ color: thermosenseEntry?.rank === 1 ? 'var(--success)' : 'inherit' }}>
-            #{thermosenseEntry?.rank || '-'}
+          <div
+            className="stat-value"
+            style={{
+              color:
+                thermosenseEntry?.rank === 1 ? "var(--success)" : "inherit",
+            }}
+          >
+            #{thermosenseEntry?.rank || "-"}
           </div>
-          <div className="stat-label">of {data.rankings.length} forecasters</div>
+          <div className="stat-label">
+            of {data.rankings.length} forecasters
+          </div>
         </div>
 
         <div className="card">
           <div className="card-header">
             <span className="card-title">ThermoSense RMSE</span>
-            <div className="stat-icon blue"><Target /></div>
+            <div className="stat-icon blue">
+              <Target />
+            </div>
           </div>
-          <div className="stat-value">{thermosenseEntry?.rmse?.toFixed(3) || '-'}°C</div>
+          <div className="stat-value">
+            {thermosenseEntry?.rmse?.toFixed(3) || "-"}°C
+          </div>
           <div className="stat-label">Day-{horizon} prediction error</div>
         </div>
 
         <div className="card">
           <div className="card-header">
             <span className="card-title">Sample Size</span>
-            <div className="stat-icon orange"><Calendar /></div>
+            <div className="stat-icon orange">
+              <Calendar />
+            </div>
           </div>
           <div className="stat-value">{thermosenseEntry?.n_days || 0}</div>
           <div className="stat-label">days of parallel comparison</div>
@@ -274,9 +415,13 @@ export default function Leaderboard() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Forecasts Stored</span>
-            <div className="stat-icon blue"><TrendingUp /></div>
+            <div className="stat-icon blue">
+              <TrendingUp />
+            </div>
           </div>
-          <div className="stat-value">{status?.forecast_count?.toLocaleString() || 0}</div>
+          <div className="stat-value">
+            {status?.forecast_count?.toLocaleString() || 0}
+          </div>
           <div className="stat-label">total predictions collected</div>
         </div>
       </div>
@@ -285,16 +430,32 @@ export default function Leaderboard() {
       <div className="card" style={{ marginBottom: 24 }}>
         <div className="card-header">
           <span className="card-title">
-            <Trophy style={{ width: 14, height: 14, marginRight: 6, verticalAlign: -2 }} />
+            <Trophy
+              style={{
+                width: 14,
+                height: 14,
+                marginRight: 6,
+                verticalAlign: -2,
+              }}
+            />
             Day-{horizon} Forecast Accuracy Rankings (Last {windowDays} Days)
           </span>
         </div>
         <p className="chart-description">
-          Each forecaster's predictions are compared against actual sensor readings at 9 PM daily.
-          RMSE (Root Mean Squared Error) penalizes large misses more heavily than MAE.
-          Lower values indicate more accurate predictions.
+          Each forecaster's predictions are compared against actual sensor
+          readings at 9 PM daily. RMSE (Root Mean Squared Error) penalizes large
+          misses more heavily than MAE. Lower values indicate more accurate
+          predictions.
         </p>
-        <div className="table-wrapper">
+        <p className="quiet-label" style={{ marginBottom: 8 }}>
+          Scroll the rankings horizontally on a small screen.
+        </p>
+        <div
+          className="table-wrapper"
+          tabIndex={0}
+          role="region"
+          aria-label="Forecast rankings"
+        >
           <table>
             <thead>
               <tr>
@@ -308,39 +469,64 @@ export default function Leaderboard() {
             </thead>
             <tbody>
               {data.rankings.map((r, i) => (
-                <tr 
-                  key={r.source} 
-                  style={r.source === 'thermosense' ? { background: 'var(--success-soft)' } : {}}
+                <tr
+                  key={r.source}
+                  style={
+                    r.source === "thermosense"
+                      ? { background: "var(--success-soft)" }
+                      : {}
+                  }
                 >
-                  <td style={{ textAlign: 'center' }}>{getRankIcon(r.rank)}</td>
+                  <td style={{ textAlign: "center" }}>{getRankIcon(r.rank)}</td>
                   <td>
-                    <span style={{ 
-                      fontWeight: 600, 
-                      color: SOURCE_COLORS[r.source] || 'inherit',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}>
-                      <span style={{ 
-                        width: 8, 
-                        height: 8, 
-                        borderRadius: '50%', 
-                        background: SOURCE_COLORS[r.source] || '#666',
-                      }} />
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        color: SOURCE_COLORS[r.source] || "inherit",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: SOURCE_COLORS[r.source] || "#666",
+                        }}
+                      />
                       {SOURCE_NAMES[r.source] || r.source}
-                      {r.source === 'thermosense' && (
-                        <span className="badge badge-success" style={{ marginLeft: 4 }}>You</span>
+                      {r.source === "thermosense" && (
+                        <span
+                          className="badge badge-success"
+                          style={{ marginLeft: 4 }}
+                        >
+                          You
+                        </span>
                       )}
                     </span>
                   </td>
-                  <td className="mono" style={{ fontWeight: r.rank === 1 ? 700 : 400 }}>
+                  <td
+                    className="mono"
+                    style={{ fontWeight: r.rank === 1 ? 700 : 400 }}
+                  >
                     {r.rmse?.toFixed(3)}°C
                   </td>
                   <td className="mono">{r.mae?.toFixed(3)}°C</td>
-                  <td className="mono" style={{ 
-                    color: r.mean_error > 0 ? '#f59e0b' : r.mean_error < 0 ? '#3b82f6' : 'inherit' 
-                  }}>
-                    {r.mean_error > 0 ? '+' : ''}{r.mean_error?.toFixed(3)}°C
+                  <td
+                    className="mono"
+                    style={{
+                      color:
+                        r.mean_error > 0
+                          ? "#9c5223"
+                          : r.mean_error < 0
+                            ? "#276349"
+                            : "inherit",
+                    }}
+                  >
+                    {r.mean_error > 0 ? "+" : ""}
+                    {r.mean_error?.toFixed(3)}°C
                   </td>
                   <td className="mono">{r.n_days}</td>
                 </tr>
@@ -353,22 +539,38 @@ export default function Leaderboard() {
       {/* Charts */}
       <div className="card-grid-2" style={{ marginBottom: 24 }}>
         <div className="card">
-          <div className="card-header"><span className="card-title">RMSE Comparison</span></div>
+          <div className="card-header">
+            <span className="card-title">RMSE Comparison</span>
+          </div>
           <p className="chart-description">
-            Lower RMSE = more accurate. ThermoSense learns your location's microclimate bias,
-            which commercial apps miss because they use regional grid averages.
+            Lower RMSE means a smaller measured error on these stored
+            observations. Compare sample counts before drawing conclusions.
           </p>
           <div className="chart-container">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2d3a" />
-                <XAxis type="number" stroke="#6b7280" fontSize={11} unit="°C" />
-                <YAxis type="category" dataKey="source" stroke="#6b7280" fontSize={11} width={100} />
-                <Tooltip
-                  contentStyle={{ background: '#1e2130', border: '1px solid #2a2d3a', borderRadius: 8 }}
-                  formatter={(value) => [`${value.toFixed(3)}°C`, 'RMSE']}
+                <CartesianGrid strokeDasharray="3 3" stroke="#dce2d7" />
+                <XAxis type="number" stroke="#647268" fontSize={11} unit="°C" />
+                <YAxis
+                  type="category"
+                  dataKey="source"
+                  stroke="#647268"
+                  fontSize={11}
+                  width={100}
                 />
-                <Bar dataKey="rmse" radius={[0, 4, 4, 0]}>
+                <Tooltip
+                  contentStyle={{
+                    background: "#ffffff",
+                    border: "1px solid #dce2d7",
+                    borderRadius: 8,
+                  }}
+                  formatter={(value) => [`${value.toFixed(3)}°C`, "RMSE"]}
+                />
+                <Bar
+                  isAnimationActive={false}
+                  dataKey="rmse"
+                  radius={[0, 4, 4, 0]}
+                >
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
@@ -379,22 +581,39 @@ export default function Leaderboard() {
         </div>
 
         <div className="card">
-          <div className="card-header"><span className="card-title">MAE Comparison</span></div>
+          <div className="card-header">
+            <span className="card-title">MAE Comparison</span>
+          </div>
           <p className="chart-description">
             MAE (Mean Absolute Error) shows the average prediction miss in °C.
-            Unlike RMSE, MAE doesn't penalize occasional large errors more heavily.
+            Unlike RMSE, MAE doesn't penalize occasional large errors more
+            heavily.
           </p>
           <div className="chart-container">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2d3a" />
-                <XAxis type="number" stroke="#6b7280" fontSize={11} unit="°C" />
-                <YAxis type="category" dataKey="source" stroke="#6b7280" fontSize={11} width={100} />
-                <Tooltip
-                  contentStyle={{ background: '#1e2130', border: '1px solid #2a2d3a', borderRadius: 8 }}
-                  formatter={(value) => [`${value.toFixed(3)}°C`, 'MAE']}
+                <CartesianGrid strokeDasharray="3 3" stroke="#dce2d7" />
+                <XAxis type="number" stroke="#647268" fontSize={11} unit="°C" />
+                <YAxis
+                  type="category"
+                  dataKey="source"
+                  stroke="#647268"
+                  fontSize={11}
+                  width={100}
                 />
-                <Bar dataKey="mae" radius={[0, 4, 4, 0]}>
+                <Tooltip
+                  contentStyle={{
+                    background: "#ffffff",
+                    border: "1px solid #dce2d7",
+                    borderRadius: 8,
+                  }}
+                  formatter={(value) => [`${value.toFixed(3)}°C`, "MAE"]}
+                />
+                <Bar
+                  isAnimationActive={false}
+                  dataKey="mae"
+                  radius={[0, 4, 4, 0]}
+                >
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
@@ -409,65 +628,89 @@ export default function Leaderboard() {
       {comparisonChartData.length > 0 && (
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Forecast vs Actual (Last 14 Days)</span>
+            <span className="card-title">
+              Forecast vs Actual (Last 14 Days)
+            </span>
           </div>
           <p className="chart-description">
-            Day-1 predictions from each source compared against actual sensor readings.
-            The closer a forecaster's line is to the actual (black), the more accurate it is.
+            Day-1 predictions from each source compared against actual sensor
+            readings. The closer a forecaster's line is to the actual (black),
+            the more accurate it is.
           </p>
           <div className="chart-container">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={comparisonChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2d3a" />
-                <XAxis 
-                  dataKey="date" 
-                  stroke="#6b7280" 
+                <CartesianGrid strokeDasharray="3 3" stroke="#dce2d7" />
+                <XAxis
+                  dataKey="date"
+                  stroke="#647268"
                   fontSize={11}
-                  tickFormatter={v => {
-                    if (!v) return '';
-                    const parts = v.split('-');
+                  tickFormatter={(v) => {
+                    if (!v) return "";
+                    const parts = v.split("-");
                     return `${parts[2]}/${parts[1]}`;
                   }}
                 />
-                <YAxis 
-                  stroke="#6b7280" 
-                  fontSize={11} 
-                  domain={['auto', 'auto']}
-                  label={{ value: '°C', angle: -90, position: 'insideLeft', fill: '#6b7280', fontSize: 11 }}
+                <YAxis
+                  stroke="#647268"
+                  fontSize={11}
+                  domain={["auto", "auto"]}
+                  label={{
+                    value: "°C",
+                    angle: -90,
+                    position: "insideLeft",
+                    fill: "#647268",
+                    fontSize: 11,
+                  }}
                   width={40}
                 />
                 <Tooltip
-                  contentStyle={{ background: '#1e2130', border: '1px solid #2a2d3a', borderRadius: 8 }}
-                  labelFormatter={v => {
-                    if (!v) return '';
-                    const parts = v.split('-');
+                  contentStyle={{
+                    background: "#ffffff",
+                    border: "1px solid #dce2d7",
+                    borderRadius: 8,
+                  }}
+                  labelFormatter={(v) => {
+                    if (!v) return "";
+                    const parts = v.split("-");
                     return `${parts[2]}-${parts[1]}-${parts[0]}`;
                   }}
-                  formatter={(value, name) => [`${value?.toFixed(1)}°C`, SOURCE_NAMES[name] || name]}
+                  formatter={(value, name) => [
+                    `${value?.toFixed(1)}°C`,
+                    SOURCE_NAMES[name] || name,
+                  ]}
                 />
-                <Legend 
+                <Legend
                   wrapperStyle={{ fontSize: 12 }}
                   formatter={(value) => SOURCE_NAMES[value] || value}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="actual" 
-                  stroke="#ffffff" 
+                <Line
+                  isAnimationActive={false}
+                  type="linear"
+                  dataKey="actual"
+                  stroke="#203b32"
                   strokeWidth={3}
-                  dot={{ fill: '#ffffff', r: 3 }}
+                  dot={{ fill: "#203b32", r: 3 }}
                   name="Actual"
                 />
-                {Object.keys(SOURCE_COLORS).map(source => (
-                  <Line 
-                    key={source}
-                    type="monotone" 
-                    dataKey={source} 
-                    stroke={SOURCE_COLORS[source]}
-                    strokeWidth={2}
-                    strokeDasharray={source === 'thermosense' ? '0' : '5 5'}
-                    dot={false}
-                  />
-                ))}
+                {Object.keys(SOURCE_COLORS)
+                  .filter((source) =>
+                    comparisonChartData.some((row) =>
+                      Number.isFinite(row[source]),
+                    ),
+                  )
+                  .map((source) => (
+                    <Line
+                      isAnimationActive={false}
+                      key={source}
+                      type="linear"
+                      dataKey={source}
+                      stroke={SOURCE_COLORS[source]}
+                      strokeWidth={2}
+                      strokeDasharray={source === "thermosense" ? "0" : "5 5"}
+                      dot={false}
+                    />
+                  ))}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -478,11 +721,26 @@ export default function Leaderboard() {
       <div className="card" style={{ marginTop: 24 }}>
         <div className="card-header">
           <span className="card-title">
-            <Info style={{ width: 14, height: 14, marginRight: 6, verticalAlign: -2 }} />
+            <Info
+              style={{
+                width: 14,
+                height: 14,
+                marginRight: 6,
+                verticalAlign: -2,
+              }}
+            />
             Collection Status
           </span>
         </div>
-        <div className="table-wrapper">
+        <p className="quiet-label" style={{ marginBottom: 8 }}>
+          Scroll collection details horizontally on a small screen.
+        </p>
+        <div
+          className="table-wrapper"
+          tabIndex={0}
+          role="region"
+          aria-label="Collection status"
+        >
           <table>
             <thead>
               <tr>
@@ -498,11 +756,20 @@ export default function Leaderboard() {
                   <td style={{ fontWeight: 600, color: SOURCE_COLORS[source] }}>
                     {SOURCE_NAMES[source] || source}
                   </td>
-                  <td className="mono" style={{ fontSize: '0.8rem' }}>
-                    {info.last_collected ? new Date(info.last_collected).toLocaleString() : '-'}
+                  <td className="mono" style={{ fontSize: "0.8rem" }}>
+                    {info.last_collected
+                      ? new Date(info.last_collected).toLocaleString()
+                      : "-"}
                   </td>
-                  <td className="mono" style={{ color: 'var(--success)' }}>{info.successes}</td>
-                  <td className="mono" style={{ color: info.failures > 0 ? 'var(--danger)' : 'inherit' }}>
+                  <td className="mono" style={{ color: "var(--success)" }}>
+                    {info.successes}
+                  </td>
+                  <td
+                    className="mono"
+                    style={{
+                      color: info.failures > 0 ? "var(--danger)" : "inherit",
+                    }}
+                  >
                     {info.failures}
                   </td>
                 </tr>
@@ -511,11 +778,18 @@ export default function Leaderboard() {
           </table>
         </div>
         {status?.date_range && (
-          <p style={{ marginTop: 12, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            Data range: {status.date_range.earliest} to {status.date_range.latest}
+          <p
+            style={{
+              marginTop: 12,
+              fontSize: "0.8rem",
+              color: "var(--text-secondary)",
+            }}
+          >
+            Data range: {status.date_range.earliest} to{" "}
+            {status.date_range.latest}
           </p>
         )}
       </div>
     </>
   );
-}
+              }
