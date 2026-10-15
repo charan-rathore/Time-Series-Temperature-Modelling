@@ -534,8 +534,8 @@ def get_leaderboard(
             "rank": len(results) + 1,
             "source": row["source"],
             "rmse": round(mse ** 0.5, 3),
-            "mae": round(row["mae"], 3) if row["mae"] else None,
-            "mean_error": round(row["mean_error"], 3) if row["mean_error"] else None,
+            "mae": round(row["mae"], 3) if row["mae"] is not None else None,
+            "mean_error": round(row["mean_error"], 3) if row["mean_error"] is not None else None,
             "n_days": row["n_days"],
         })
     
