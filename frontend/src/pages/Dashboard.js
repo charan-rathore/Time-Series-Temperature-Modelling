@@ -1,19 +1,17 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from "react";
+import { ArrowUpRight, RefreshCw, AlertCircle, ArrowRight } from "lucide-react";
 import {
-  Thermometer,
-  Database,
-  Cpu,
-  TrendingUp,
-  CloudSun,
-  ArrowRight,
-  RefreshCw,
-  AlertCircle,
-  Info,
-} from 'lucide-react';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-} from 'recharts';
-import { api } from '../api';
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
+import { api } from "../api";
+import { temperature, shortDate } from "../presentation";
 
 export default function Dashboard({ onNavigate }) {
   const [status, setStatus] = useState(null);
@@ -21,7 +19,6 @@ export default function Dashboard({ onNavigate }) {
   const [history, setHistory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -40,212 +37,235 @@ export default function Dashboard({ onNavigate }) {
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  if (loading) {
-    return <div className="loading-state"><div className="spinner" /><span>Loading dashboard…</span></div>;
-  }
-
-  if (error) {
+  useEffect(() => {
+    load();
+  }, [load]);
+  if (loading)
     return (
-      <div className="empty-state">
+      <div className="loading-state" role="status">
+        <div className="spinner" />
+        Reading the station…
+      </div>
+    );
+  if (error)
+    return (
+      <div className="empty-state" role="alert">
         <AlertCircle />
-        <p>Failed to connect: {error}</p>
-        <button className="btn btn-secondary btn-sm" onClick={load} style={{ marginTop: 12 }}>
-          <RefreshCw /> Retry
+        <h2>Station unavailable</h2>
+        <p>{error}</p>
+        <button className="btn btn-secondary" onClick={load}>
+          <RefreshCw />
+          Try again
         </button>
       </div>
     );
-  }
-
-  const chartData = history?.records?.slice(-30).map(r => ({
-    date: r.date,
-    temp: r.actual_temp_c,
-    api: r.api_temp_c,
-  })) || [];
-
-  const bestModel = status?.models_available?.includes('ensemble')
-    ? 'Ensemble'
-    : status?.models_available?.find(m => m.startsWith('lgbm'))
-      ? 'LightGBM'
-      : status?.models_available?.includes('sarima')
-        ? 'SARIMA'
-        : 'None';
-
-  const formatDateRange = (range) => {
-    if (!range) return 'No data';
-    return range.replace(/(\d{4})-(\d{2})-(\d{2})/g, (_, y, m, d) => `${d}-${m}-${y}`);
-  };
-
+  const tomorrow = forecast?.forecasts?.[0];
+  const chartData = (history?.records || [])
+    .slice(-30)
+    .map((r) => ({ date: r.date, temp: r.actual_temp_c, api: r.api_temp_c }));
+  const model = forecast?.model_used || "Unavailable";
+  const rmse =
+    status?.last_training_results?.ensemble?.day1?.rmse ??
+    status?.last_training_results?.lgbm?.day1?.rmse;
   return (
     <>
-      <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <header className="page-header">
         <div>
-          <h2>Dashboard</h2>
-          <p>ThermoSense system overview - {formatDateRange(status?.data_date_range)}</p>
+          <p className="eyebrow">The observation room</p>
+          <h2>Station overview</h2>
+          <p>
+            {forecast?.location ||
+              history?.location ||
+              "Local temperature station"}{" "}
+            · A closer view of your microclimate
+          </p>
         </div>
-        <button className="btn btn-secondary btn-sm" onClick={load}><RefreshCw /> Refresh</button>
-      </div>
-
-      <div className="card-grid">
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Data Points</span>
-            <div className="stat-icon blue"><Database /></div>
-          </div>
-          <div className="stat-value">{status?.data_rows?.toLocaleString() || 0}</div>
-          <div className="stat-label">{status?.data_available ? 'Dataset loaded' : 'No data - run backfill'}</div>
-        </div>
-
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Active Model</span>
-            <div className="stat-icon green"><Cpu /></div>
-          </div>
-          <div className="stat-value">{bestModel}</div>
-          <div className="stat-label">
-            {status?.models_available?.length || 0} model file{status?.models_available?.length !== 1 ? 's' : ''} loaded
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Tomorrow's Forecast</span>
-            <div className="stat-icon orange"><Thermometer /></div>
-          </div>
-          <div className="stat-value">
-            {forecast?.forecasts?.[0]?.predicted_temp_c
-              ? `${forecast.forecasts[0].predicted_temp_c}°C`
-              : '-'}
-          </div>
-          <div className="stat-label">
-            {forecast?.forecasts?.[0]
-              ? `${forecast.forecasts[0].lower_bound_c}° - ${forecast.forecasts[0].upper_bound_c}°C range`
-              : 'No forecast available'}
-          </div>
-          <div className="info-hint">
-            <Info style={{ width: 12, height: 12 }} />
-            Predicted daily avg temperature (9 PM snapshot) for tomorrow
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Day-1 RMSE</span>
-            <div className="stat-icon blue"><TrendingUp /></div>
-          </div>
-          <div className="stat-value">
-            {status?.last_training_results?.ensemble?.day1?.rmse
-              ? `${status.last_training_results.ensemble.day1.rmse.toFixed(3)}°C`
-              : status?.last_training_results?.lgbm?.day1?.rmse
-                ? `${status.last_training_results.lgbm.day1.rmse.toFixed(3)}°C`
-                : '-'}
-          </div>
-          <div className="stat-label">Root mean squared error</div>
-          <div className="info-hint">
-            <Info style={{ width: 12, height: 12 }} />
-            Avg prediction error vs actual observed temperature on test data
-          </div>
-        </div>
-      </div>
-
-      {/* Forecast strip */}
-      {forecast?.forecasts && (
-        <div className="card" style={{ marginBottom: 24, cursor: 'pointer' }} onClick={() => onNavigate('forecast')}>
-          <div className="card-header">
-            <span className="card-title"><CloudSun style={{ width: 14, height: 14, marginRight: 6, verticalAlign: -2 }} />
-              3-Day Forecast - {forecast.model_used}</span>
-            <span style={{ fontSize: '0.78rem', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              View details <ArrowRight style={{ width: 14 }} />
+        <button className="btn btn-secondary" onClick={load}>
+          <RefreshCw />
+          Refresh
+        </button>
+      </header>
+      <div className="overview-grid">
+        <section
+          className="temperature-hero"
+          aria-label="Tomorrow's temperature forecast"
+        >
+          <div className="hero-top">
+            <span className="eyebrow">
+              Tomorrow · {shortDate(tomorrow?.date)}
             </span>
+            <span className="source-tag">{model}</span>
           </div>
-          <p className="chart-description">
-            Predicted daily average temperature for the next 3 days. Each value represents the expected temperature
-            at the 9 PM local snapshot, which is used as the daily reference point.
+          <div className="hero-temperature">
+            {temperature(tomorrow?.predicted_temp_c)}
+            <span>°C</span>
+          </div>
+          <p className="hero-caption">Expected at 9 PM local time</p>
+          <div className="hero-bottom">
+            <span>
+              {tomorrow
+                ? `${temperature(tomorrow.lower_bound_c)} to ${temperature(tomorrow.upper_bound_c)} °C reported range`
+                : "Forecast unavailable"}
+            </span>
+            <button
+              className="text-button"
+              onClick={() => onNavigate("forecast")}
+            >
+              Forecast details <ArrowUpRight size={16} />
+            </button>
+          </div>
+          {model === "placeholder" && (
+            <p className="hero-caveat">
+              Placeholder estimate, not a trained model forecast.
+            </p>
+          )}
+        </section>
+        <section className="station-ledger" aria-label="Station record">
+          <span className="eyebrow">Station record</span>
+          <dl>
+            <div>
+              <dt>Daily observations</dt>
+              <dd>{status?.data_rows?.toLocaleString() ?? "Unavailable"}</dd>
+            </div>
+            <div>
+              <dt>Model artifacts</dt>
+              <dd>{status?.models_available?.length ?? 0}</dd>
+            </div>
+            <div>
+              <dt>Training RMSE · day 1</dt>
+              <dd>
+                {temperature(rmse)} <small>°C</small>
+              </dd>
+            </div>
+          </dl>
+          <p>
+            {status?.data_available
+              ? `Dataset: ${status.data_date_range || "date range unavailable"}`
+              : "No dataset loaded. Run a backfill in Pipeline."}
           </p>
-          <div className="card-grid-3">
-            {forecast.forecasts.map(f => {
-              const [y, m, d] = (f.date || '').split('-');
-              const fmtDate = d && m && y ? `${d}-${m}-${y}` : f.date;
-              return (
-                <div key={f.horizon_days} className="forecast-card card">
-                  <div className="forecast-day">Day {f.horizon_days}</div>
-                  <div className="forecast-date">{fmtDate}</div>
-                  <div className="forecast-temp">{f.predicted_temp_c}°</div>
-                  <div className="forecast-range">{f.lower_bound_c}° - {f.upper_bound_c}°C</div>
-                </div>
-              );
-            })}
+          <p className="ledger-note">
+            Training scores are not a guarantee of future accuracy.
+          </p>
+        </section>
+      </div>
+      <section className="card trend-card">
+        <div className="card-header">
+          <div>
+            <span className="eyebrow">Measured & estimated</span>
+            <h3>Temperature record</h3>
           </div>
+          <button className="text-button" onClick={() => onNavigate("history")}>
+            Explore history <ArrowRight size={15} />
+          </button>
         </div>
-      )}
-
-      {/* Temperature chart */}
-      {chartData.length > 0 && (
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Temperature - Last 30 Days</span>
-          </div>
-          <p className="chart-description">
-            Comparison of two temperature sources over the last 30 days.{' '}
-            <strong style={{ color: '#3b82f6' }}>Sensor</strong> = locally recorded ground-truth readings
-            (from physical sensors or manual observations).{' '}
-            <strong style={{ color: '#f59e0b' }}>API</strong> = Open-Meteo grid-cell estimate for this location.
-            The API temperature is typically lower because it represents a regional grid average, which doesn't capture
-            local microclimate effects (urban heat, building proximity, etc.) that the sensor picks up.
-          </p>
+        <p className="chart-description">
+          Latest {chartData.length} stored daily records. Local/reference
+          temperature alongside the Open-Meteo grid estimate.
+        </p>
+        {chartData.length ? (
           <div className="chart-container">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="tempGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="apiGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2d3a" />
+              <LineChart
+                data={chartData}
+                margin={{ top: 16, right: 14, left: 0, bottom: 4 }}
+              >
+                <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis
                   dataKey="date"
-                  stroke="#6b7280"
-                  fontSize={11}
-                  tickFormatter={v => {
-                    if (!v) return '';
-                    const parts = v.split('-');
-                    return `${parts[2]}-${parts[1]}`;
-                  }}
-                  label={{ value: 'Date (DD-MM)', position: 'insideBottom', offset: -5, fill: '#6b7280', fontSize: 11 }}
-                  height={50}
+                  tickFormatter={shortDate}
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={36}
+                  tick={{ fill: "var(--text-muted)", fontSize: 12 }}
                 />
                 <YAxis
-                  stroke="#6b7280"
-                  fontSize={11}
-                  domain={['auto', 'auto']}
-                  label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft', fill: '#6b7280', fontSize: 11, dx: -5 }}
-                  width={65}
+                  domain={["auto", "auto"]}
+                  tickLine={false}
+                  axisLine={false}
+                  width={42}
+                  tick={{ fill: "var(--text-muted)", fontSize: 12 }}
+                  unit="°"
                 />
                 <Tooltip
-                  contentStyle={{ background: '#1e2130', border: '1px solid #2a2d3a', borderRadius: 8 }}
-                  labelStyle={{ color: '#9aa0b0' }}
-                  labelFormatter={v => {
-                    if (!v) return '';
-                    const parts = v.split('-');
-                    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                  contentStyle={{
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 4,
                   }}
-                  formatter={(value, name) => [`${value}°C`, name]}
+                  labelFormatter={shortDate}
+                  formatter={(v, n) => [`${temperature(v)} °C`, n]}
                 />
-                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                <Area type="monotone" dataKey="temp" name="Sensor (local reading) °C" stroke="#3b82f6" fill="url(#tempGrad)" strokeWidth={2} dot={false} />
-                <Area type="monotone" dataKey="api" name="API (Open-Meteo grid) °C" stroke="#f59e0b" fill="url(#apiGrad)" strokeWidth={1.5} dot={false} />
-              </AreaChart>
+                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 18 }} />
+                <Line
+                  isAnimationActive={false}
+                  type="linear"
+                  dataKey="temp"
+                  name="Local / reference"
+                  stroke="var(--chart-local)"
+                  strokeWidth={2.5}
+                  dot={false}
+                />
+                <Line
+                  isAnimationActive={false}
+                  type="linear"
+                  dataKey="api"
+                  name="Open-Meteo estimate"
+                  stroke="var(--chart-api)"
+                  strokeDasharray="5 4"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
             </ResponsiveContainer>
           </div>
+        ) : (
+          <div className="empty-state">
+            <p>No history available. Check the dataset in Pipeline.</p>
+          </div>
+        )}
+        <div className="chart-footnote">
+          Daily reference: 9 PM local time. A gap in a line means a reading is
+          missing, not zero.
         </div>
-      )}
+      </section>
+      <section className="outlook-section">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">Looking ahead</span>
+            <h3>The next three evenings</h3>
+          </div>
+          <span className="quiet-label">Not hourly or daily averages</span>
+        </div>
+        {forecast?.forecasts?.length ? (
+          <div className="outlook-list">
+            {forecast.forecasts.map((f) => (
+              <button
+                className="outlook-item"
+                key={f.horizon_days}
+                onClick={() => onNavigate("forecast")}
+              >
+                <span className="outlook-day">
+                  Day {f.horizon_days}
+                  <small>{shortDate(f.date)}</small>
+                </span>
+                <strong>
+                  {temperature(f.predicted_temp_c)}
+                  <span>°C</span>
+                </strong>
+                <span className="outlook-range">
+                  {temperature(f.lower_bound_c)} to{" "}
+                  {temperature(f.upper_bound_c)} °C
+                </span>
+                <ArrowUpRight size={18} />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="chart-description">
+            Forecast unavailable. Open Forecast to retry.
+          </p>
+        )}
+      </section>
     </>
   );
 }
