@@ -792,4 +792,4 @@ export default function Leaderboard() {
       </div>
     </>
   );
-              }
+}
