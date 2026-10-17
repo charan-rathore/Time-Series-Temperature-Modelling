@@ -8,6 +8,14 @@ Latest Open-Meteo Bangalore demo metrics: [docs/demo-results.md](docs/demo-resul
 
 ---
 
+
+## Interactive architecture guide
+
+![ThermoSense data paths and store boundaries](docs/architecture/observation-to-evidence.svg)
+
+[Open the source-linked architecture guide](docs/architecture/interactive.html) for twelve expandable stages, distinct storage paths and current forecast/readiness limits. GitHub shows HTML as source; clone or download the whole repository, then open the HTML locally so its code links keep working. The guide makes no external calls and changes no application behavior.
+
+
 ## Why this project exists
 
 Commercial weather apps (Google Weather, AccuWeather, OpenWeatherMap, and similar) do not measure temperature at your balcony, courtyard, or rooftop. They report a value from a regional model or the nearest official station - often kilometers away, at a different elevation, and in a different microclimate.
