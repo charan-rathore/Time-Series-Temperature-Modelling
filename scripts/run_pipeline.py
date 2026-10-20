@@ -110,13 +110,14 @@ def cmd_daily(args: argparse.Namespace) -> None:
     print("  ThermoSense - DAILY update mode")
     print("=" * 60)
 
-    processed_path = _PROJECT_ROOT / "data" / "processed" / "daily_merged.parquet"
-    if not processed_path.exists():
+    try:
+        # load_processed() falls back to the committed bundle CSV when the
+        # parquet store is absent (e.g. inside a Vercel function bundle).
+        existing = load_processed()
+    except Exception:
         print("\nERROR: No processed data found. Run backfill first:")
         print("  python scripts/run_pipeline.py --mode backfill")
         sys.exit(1)
-
-    existing = load_processed()
     last_date = existing["date"].max().date()
     today = date.today()
     yesterday = today - timedelta(days=1)
@@ -147,6 +148,7 @@ def cmd_daily(args: argparse.Namespace) -> None:
     print("\nFetching 7-day forecast for covariate prediction…")
     forecast_df = fetch_forecast_open_meteo(forecast_days=7)
     forecast_path = _PROJECT_ROOT / "data" / "processed" / "forecast_7day.parquet"
+    forecast_path.parent.mkdir(parents=True, exist_ok=True)
     forecast_df.to_parquet(forecast_path, index=False)
     print(f"Forecast saved → data/processed/forecast_7day.parquet ({len(forecast_df)} rows)")
 

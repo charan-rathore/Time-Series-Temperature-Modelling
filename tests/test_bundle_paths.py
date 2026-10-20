@@ -47,8 +47,9 @@ def _deployed_artifacts():
     """Everything the live function serves that must survive bundling."""
     artifacts = set(_serving_paths())
     artifacts.add("data/baselines/forecasts.db")
-    for p in (ROOT / "models").glob("*.pkl"):
-        artifacts.add(str(p.relative_to(ROOT)))
+    for pattern in ("*.pkl", "*.ckpt"):
+        for p in (ROOT / "models").glob(pattern):
+            artifacts.add(str(p.relative_to(ROOT)))
     artifacts.add("models/results.json")
     return artifacts
 
@@ -121,3 +122,34 @@ def test_load_processed_falls_back_to_bundle_csv(tmp_path, monkeypatch):
     df = preprocess.load_processed(str(tmp_path / "data" / "processed" / "daily_merged.parquet"))
     assert len(df) == 2
     assert list(df["temp_c"]) == [24.0, 25.0]
+
+
+def test_daily_mode_reads_the_bundle_when_parquet_is_absent(tmp_path, monkeypatch, capsys):
+    """/api/pipeline/daily must not die just because the gitignored
+    parquet directory is missing while the served CSV bundle exists."""
+    import pandas as pd
+    import scripts.run_pipeline as rp
+    from src.data import preprocess
+
+    bundle = tmp_path / "data" / "bundle"
+    bundle.mkdir(parents=True)
+    pd.DataFrame({
+        "date": pd.to_datetime(["2026-10-18", "2026-10-19"]),
+        "temp_c": [24.0, 25.0], "is_sensor_reading": [False, False],
+        "gap_filled": [False, False],
+    }).to_csv(bundle / "daily_merged.csv", index=False)
+    monkeypatch.setattr(rp, "_PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(preprocess, "_PROJECT_ROOT", tmp_path)
+
+    import pandas as pd
+    monkeypatch.setattr(
+        rp, "fetch_forecast_open_meteo",
+        lambda forecast_days=7: pd.DataFrame({"date": ["2026-10-20"], "temp_c": [25.0]}))
+    monkeypatch.setattr(rp, "fetch_owm_current", lambda: None)
+
+    class Args:
+        mode = "daily"
+    try:
+        rp.cmd_daily(Args())
+    except SystemExit as exc:
+        raise AssertionError(f"cmd_daily exited despite the bundle: {exc}")

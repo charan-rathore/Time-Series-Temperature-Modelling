@@ -294,3 +294,4 @@ config/secrets.yaml
 !models/results.json
 !data/baselines/forecasts.db
 !data/bundle/
+!models/*.ckpt
