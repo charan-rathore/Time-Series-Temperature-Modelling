@@ -62,29 +62,29 @@
   },
   "ensemble": {
     "day1": {
-      "n_observations": 30,
-      "mae": 1.056542274017607,
-      "rmse": 1.3223465613678353,
-      "mape": 4.628118475406797,
-      "skill_score": -0.23858760716814542,
+      "n_observations": 27,
+      "mae": 1.276226025678845,
+      "rmse": 1.613064149106701,
+      "mape": 5.706874317271148,
+      "skill_score": -0.46687933871492904,
       "skill_score_status": "available",
       "mape_status": "available"
     },
     "day2": {
-      "n_observations": 30,
-      "mae": 1.197318057377027,
-      "rmse": 1.41716933720113,
-      "mape": 5.214005431641364,
-      "skill_score": -0.3274041991687442,
+      "n_observations": 27,
+      "mae": 1.3871083863583098,
+      "rmse": 1.7217892875919543,
+      "mape": 6.227045269775682,
+      "skill_score": -0.5657512027578186,
       "skill_score_status": "available",
       "mape_status": "available"
     },
     "day3": {
-      "n_observations": 30,
-      "mae": 1.9219258955240182,
-      "rmse": 2.321571335575061,
-      "mape": 8.513821343240904,
-      "skill_score": -1.174520333327509,
+      "n_observations": 27,
+      "mae": 1.6858626980266609,
+      "rmse": 2.1015865825021858,
+      "mape": 7.591390368489695,
+      "skill_score": -0.9111291625321805,
       "skill_score_status": "available",
       "mape_status": "available"
     }
