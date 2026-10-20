@@ -2,6 +2,7 @@ import React from "react";
 import { render, screen, within } from "@testing-library/react";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
+import Leaderboard from "./pages/Leaderboard";
 import { api } from "./api";
 
 jest.mock("./api", () => ({
@@ -10,6 +11,9 @@ jest.mock("./api", () => ({
     getForecast: jest.fn(),
     getHistory: jest.fn(),
     getSensorLatest: jest.fn(),
+    getLeaderboard: jest.fn(),
+    getLeaderboardComparison: jest.fn(),
+    getLeaderboardStatus: jest.fn(),
   },
 }));
 
@@ -38,7 +42,7 @@ it("says it is waiting instead of showing a zero when no sensor has reported", a
   ).toBeInTheDocument();
 });
 
-it("labels an untrained climatology forecast as the seasonal average", async () => {
+it("labels an untrained climatology forecast as the last recorded reading", async () => {
   api.getStatus.mockResolvedValue({
     data_available: true,
     data_rows: 30,
@@ -62,8 +66,9 @@ it("labels an untrained climatology forecast as the seasonal average", async () 
   });
   api.getHistory.mockResolvedValue({ records: [], total_records: 0 });
   render(<Dashboard onNavigate={jest.fn()} />);
-  expect(await screen.findByText("seasonal average")).toBeInTheDocument();
-  expect(screen.getByText(/historical average for this date/)).toBeInTheDocument();
+  expect(await screen.findByText("last recorded reading")).toBeInTheDocument();
+  expect(screen.getByText(/repeats the latest recorded temperature/)).toBeInTheDocument();
+  expect(document.querySelector(".source-tag-provisional")).not.toBeNull();
 });
 
 it("shows 'none yet' instead of bare zeros when the station has no data", async () => {
@@ -80,4 +85,49 @@ it("shows 'none yet' instead of bare zeros when the station has no data", async 
   await screen.findByRole("heading", { name: "Station overview" });
   const ledger = screen.getByRole("region", { name: "Station record" });
   expect(within(ledger).getAllByText("none yet")).toHaveLength(2);
+});
+
+it("marks fallback and unavailable forecasts as provisional, never trained", async () => {
+  api.getStatus.mockResolvedValue({
+    data_available: true, data_rows: 30, models_available: ["lgbm_h1"],
+    last_training_results: {}, active_jobs: {},
+  });
+  api.getForecast.mockResolvedValue({
+    location: "Bangalore", model_used: "fallback", generated_at: "2026-10-20T00:00:00Z",
+    forecasts: [{ date: "2026-10-21", horizon_days: 1, predicted_temp_c: 26, lower_bound_c: 24, upper_bound_c: 28 }],
+  });
+  api.getHistory.mockResolvedValue({ records: [], total_records: 0 });
+  const { unmount } = render(<Dashboard onNavigate={jest.fn()} />);
+  expect(await screen.findByText("last recorded reading")).toBeInTheDocument();
+  expect(document.querySelector(".source-tag-trained")).toBeNull();
+  expect(document.querySelector(".source-tag-provisional")).not.toBeNull();
+  unmount();
+
+  api.getForecast.mockRejectedValue(new Error("network down"));
+  render(<Dashboard onNavigate={jest.fn()} />);
+  expect(await screen.findByText("Unavailable")).toBeInTheDocument();
+  expect(document.querySelector(".source-tag-trained")).toBeNull();
+});
+
+it("labels the forecast target hour in the station timezone, not the viewer's", async () => {
+  api.getStatus.mockResolvedValue({
+    data_available: true, data_rows: 30, models_available: ["lgbm_h1"],
+    last_training_results: { lgbm: { day1: { rmse: 0.7, n_observations: 30 } } }, active_jobs: {},
+  });
+  api.getForecast.mockResolvedValue({
+    location: "Bangalore", model_used: "lgbm", generated_at: "2026-10-20T00:00:00Z",
+    forecasts: [{ date: "2026-10-21", horizon_days: 1, predicted_temp_c: 22.7, lower_bound_c: 21.2, upper_bound_c: 24.2 }],
+  });
+  api.getHistory.mockResolvedValue({ records: [], total_records: 0 });
+  render(<Dashboard onNavigate={jest.fn()} />);
+  expect(await screen.findByText(/9 PM in Bangalore/)).toBeInTheDocument();
+});
+
+it("leaderboard shows the collect command instead of claiming automation that does not exist", async () => {
+  api.getLeaderboard.mockResolvedValue({ rankings: [], window_days: 30, horizon_days: 1 });
+  api.getLeaderboardComparison.mockResolvedValue({ sources: [] });
+  api.getLeaderboardStatus.mockResolvedValue({ initialized: true, forecast_count: 0, actual_count: 0 });
+  render(<Leaderboard />);
+  expect(await screen.findByText("python -m src.data.baseline_collector --collect")).toBeInTheDocument();
+  expect(screen.queryByText(/no action needed/)).toBeNull();
 });

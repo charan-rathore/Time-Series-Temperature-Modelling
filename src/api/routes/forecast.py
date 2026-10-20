@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 router = APIRouter()
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-PROCESSED_PATH = _PROJECT_ROOT / "data" / "processed" / "daily_merged.parquet"
+PROCESSED_PATH = _PROJECT_ROOT / "data" / "bundle" / "daily_merged.csv"
 
 
 class ForecastPoint(BaseModel):
@@ -127,7 +127,7 @@ def post_feedback(payload: FeedbackRequest, request: Request):
     try:
         if not PROCESSED_PATH.exists():
             raise FileNotFoundError("Processed observation store is unavailable")
-        df = pd.read_parquet(PROCESSED_PATH)
+        df = pd.read_csv(PROCESSED_PATH, parse_dates=["date"])
         obs_dt = pd.Timestamp(obs_date)
 
         if obs_dt in df["date"].values:
@@ -147,7 +147,7 @@ def post_feedback(payload: FeedbackRequest, request: Request):
             df = pd.concat([df, new_row], ignore_index=True)
             df = df.sort_values("date").reset_index(drop=True)
 
-        df.to_parquet(PROCESSED_PATH, index=False)
+        df.to_csv(PROCESSED_PATH, index=False)
     except Exception as e:
         print(f"[feedback] Error persisting observation: {e}")
         raise HTTPException(status_code=503, detail="Observation could not be recorded; please retry") from e

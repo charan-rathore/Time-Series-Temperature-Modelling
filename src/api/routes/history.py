@@ -11,7 +11,7 @@ from pydantic import BaseModel
 router = APIRouter()
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-PROCESSED_PATH = _PROJECT_ROOT / "data" / "processed" / "daily_merged.parquet"
+PROCESSED_PATH = _PROJECT_ROOT / "data" / "bundle" / "daily_merged.csv"
 
 
 class HistoricalPoint(BaseModel):
@@ -61,7 +61,7 @@ def get_history(
     records = []
     if PROCESSED_PATH.exists():
         try:
-            df = pd.read_parquet(PROCESSED_PATH)
+            df = pd.read_csv(PROCESSED_PATH, parse_dates=["date"])
             df["date"] = pd.to_datetime(df["date"])
             mask = (df["date"].dt.date >= start_date) & (df["date"].dt.date <= end_date)
             filtered = df[mask].copy()

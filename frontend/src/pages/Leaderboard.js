@@ -235,7 +235,7 @@ export default function Leaderboard() {
               color: "var(--text-secondary)",
             }}
           >
-            The daily job collects every forecast automatically; no action needed.
+            The scheduled collector isn’t deployed yet, so nothing arrives on its own. Until it is, collect today’s forecasts by running <code>python -m src.data.baseline_collector --collect</code>.
           </p>
         </div>
       </>

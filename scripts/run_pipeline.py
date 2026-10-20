@@ -74,6 +74,16 @@ def cmd_backfill(args: argparse.Namespace) -> None:
     print(f"  Gap-filled rows:  {processed['gap_filled'].sum()}")
     print(f"  Date range:       {processed['date'].min().date()} → "
           f"{processed['date'].max().date()}")
+    # Keep the served copy in data/bundle/ fresh: Vercel does not bundle
+    # files under gitignored directories, so the API reads CSVs from there.
+    bundle_dir = _PROJECT_ROOT / "data" / "bundle"
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    df.to_csv(bundle_dir / "daily_merged.csv", index=False)
+    try:
+        from src.features.engineer import build_feature_matrix
+        build_feature_matrix(df).to_csv(bundle_dir / "feature_matrix.csv", index=False)
+    except Exception as exc:
+        print(f"  (feature bundle refresh skipped: {exc})")
     print(f"\nOutput: data/processed/daily_merged.parquet")
     print("\nNext step: run Phase 2 (feature engineering)")
     print("  python -c \"from src.features.engineer import build_feature_matrix; "
