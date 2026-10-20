@@ -142,6 +142,11 @@ def test_daily_mode_reads_the_bundle_when_parquet_is_absent(tmp_path, monkeypatc
     monkeypatch.setattr(preprocess, "_PROJECT_ROOT", tmp_path)
 
     import pandas as pd
+    from src.data import fetcher
+    monkeypatch.setattr(
+        fetcher, "fetch_historical_open_meteo",
+        lambda start_date, end_date: pd.DataFrame(
+            {"date": pd.to_datetime([end_date]), "temp_c": [25.0]}))
     monkeypatch.setattr(
         rp, "fetch_forecast_open_meteo",
         lambda forecast_days=7: pd.DataFrame({"date": ["2026-10-20"], "temp_c": [25.0]}))
@@ -153,3 +158,21 @@ def test_daily_mode_reads_the_bundle_when_parquet_is_absent(tmp_path, monkeypatc
         rp.cmd_daily(Args())
     except SystemExit as exc:
         raise AssertionError(f"cmd_daily exited despite the bundle: {exc}")
+
+
+def test_committed_bundle_keeps_sensor_rows_with_covariates():
+    """Sensor observations must survive into the served feature matrix:
+    the model is supposed to learn the local sensor bias (api_bias), which
+    is impossible if sensor rows lose their API covariates and get dropped.
+    """
+    import pandas as pd
+
+    df = pd.read_csv(ROOT / "data" / "bundle" / "daily_merged.csv", parse_dates=["date"])
+    sensor = df[df["is_sensor_reading"] == True]
+    assert len(sensor) > 0, "no sensor rows in the committed data at all"
+    assert sensor["temp_c_api"].notna().all(), "sensor rows missing API covariates"
+
+    f = pd.read_csv(ROOT / "data" / "bundle" / "feature_matrix.csv")
+    kept = f[f["is_sensor_reading"] == True]
+    assert len(kept) > 0, "feature matrix dropped every sensor row"
+    assert (kept["api_bias"].abs() > 0).any(), "api_bias is flat zero on sensor rows"
