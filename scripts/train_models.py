@@ -267,57 +267,70 @@ def train_ensemble(
     sarima_cfg = config["models"]["sarima"]
     lgbm_cfg = config["models"]["lgbm"]
 
+    # TFT is not a stacker input here: base_predictions() below only produces
+    # SARIMA and LightGBM predictions, so listing "tft" would raise KeyError.
     available_base_models = ["sarima", "lgbm"]
-    if _TFT_AVAILABLE and tft_results:
-        available_base_models.append("tft")
+
+    max_h = min(3, len(val_df), len(test_df))
+    if len(val_df) <= max_h or len(test_df) <= max_h:
+        print("  Skipping ensemble: validation/test windows too short to align horizons.")
+        return {}
+    horizons = list(range(1, max_h + 1))
 
     def base_predictions(train_for_fit: pd.DataFrame, target_df: pd.DataFrame,
                          lgbm_val_df: Optional[pd.DataFrame]) -> Dict[str, np.ndarray]:
-        """Predict every day of target_df with freshly trained base models."""
+        """Predict with freshly trained base models, aligned by TARGET day.
+
+        Row i of every returned array describes target day max_h + i, so one
+        label vector, target_df["temp_c"][max_h:], scores every column. A
+        horizon-h LightGBM model predicts day t + h from features at row t,
+        so its output is shifted by h before it is stacked with SARIMA (whose
+        n-step forecast is already indexed by target day).
+        """
         n = len(target_df)
-        max_h = min(3, n)
-        preds: Dict[str, np.ndarray] = {}
         sarima_model = SARIMAXModel(sarima_cfg)
         sarima_model.fit(train_for_fit)
-        sarima_cols = np.zeros((n, max_h))
-        for h_idx in range(max_h):
-            p = sarima_model.predict(steps=n, future_df=target_df)
-            sarima_cols[: len(p), h_idx] = p[:n]
-        preds["sarima"] = sarima_cols
+        p = sarima_model.predict(steps=n, future_df=target_df)
+        sarima_full = np.zeros(n)
+        sarima_full[: len(p)] = p[:n]
+        sarima_cols = np.column_stack([sarima_full[max_h:]] * len(horizons))
 
-        lgbm_cols = np.zeros((n, max_h))
-        for h_idx, h in enumerate(range(1, max_h + 1)):
+        lgbm_cols = np.zeros((n - max_h, len(horizons)))
+        for h_idx, h in enumerate(horizons):
             m = LGBMForecastModel(lgbm_cfg, horizon=h)
             m.fit(train_for_fit, val_df=lgbm_val_df)
             p = m.predict(steps=n, future_df=target_df)
-            lgbm_cols[: len(p), h_idx] = p[:n]
-        preds["lgbm"] = lgbm_cols
-        return preds
+            # p[t] targets day t + h; target day d = max_h + i needs p[d - h].
+            for i in range(n - max_h):
+                src = max_h + i - h
+                if src < len(p):
+                    lgbm_cols[i, h_idx] = p[src]
+        return {"sarima": sarima_cols, "lgbm": lgbm_cols}
 
     # 1) Fit the stacker on validation-period predictions (test untouched).
     val_preds = base_predictions(train_df, val_df, val_df)
-    val_actuals = val_df["temp_c"].values
-    val_actuals_2d = np.column_stack([val_actuals] * min(3, len(val_df)))
+    val_actuals = val_df["temp_c"].values[max_h:]
+    val_actuals_2d = np.column_stack([val_actuals] * len(horizons))
 
     ensemble_cfg_with_models = {**ensemble_cfg, "base_models": available_base_models}
     stacker = EnsembleStacker(ensemble_cfg_with_models)
     stacker.fit_from_oof(
         {name: val_preds[name] for name in available_base_models},
         val_actuals_2d,
-        horizons=list(range(1, min(3, len(val_df)) + 1)),
+        horizons=horizons,
     )
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     stacker.save(str(MODELS_DIR / "ensemble.pkl"))
 
     # 2) Serving base models see train+val; the frozen stacker is evaluated
-    #    on every held-out test day.
+    #    on every held-out test day that has all horizons available.
     full_train = pd.concat([train_df, val_df], ignore_index=True)
     test_preds = base_predictions(full_train, test_df, val_df)
-    actuals = test_df["temp_c"].values
+    actuals = test_df["temp_c"].values[max_h:]
 
     results = {}
-    for h_idx, h in enumerate(range(1, min(3, len(test_df)) + 1)):
+    for h_idx, h in enumerate(horizons):
         X_meta = np.column_stack([
             test_preds[name][:, h_idx] for name in available_base_models
         ])
