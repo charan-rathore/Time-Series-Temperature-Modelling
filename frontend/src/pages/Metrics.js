@@ -87,8 +87,8 @@ export default function Metrics() {
           <p className="eyebrow">Evaluation notebook</p>
           <h2>Model metrics</h2>
           <p>
-            {data.location} · {models.length} models · Recorded training
-            evaluation
+            {data.location} · {models.length} models · how far off each one was
+            on past days it had not seen. Lower is better.
           </p>
         </div>
         <button className="btn btn-secondary" onClick={load}>

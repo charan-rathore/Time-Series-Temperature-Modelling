@@ -215,8 +215,9 @@ export default function Pipeline() {
         }}
       >
         <div>
-          <h2>Pipeline Control</h2>
-          <p>Run data ingestion, training, and manage the full workflow</p>
+          <p className="eyebrow">Behind the scenes</p>
+          <h2>Run the pipeline</h2>
+          <p>Pull new data, retrain, check the results. For the station keeper, not visitors.</p>
         </div>
         <div className="btn-group">
           {polling && (

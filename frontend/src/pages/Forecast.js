@@ -58,8 +58,9 @@ export default function Forecast() {
         }}
       >
         <div>
-          <h2>Forecast</h2>
-          <p>Evening temperatures and the ranges reported by the model</p>
+          <p className="eyebrow">Looking ahead</p>
+          <h2>What to expect at 9 PM</h2>
+          <p>One number per evening, with the range it is likely to fall in.</p>
         </div>
         <div className="btn-group">
           {[1, 2, 3].map((d) => (
