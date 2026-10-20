@@ -168,10 +168,12 @@ class ModelManager:
             return self._placeholder_forecast(days)
 
         forecasts = []
-        model_name = self.get_best_model_name()
+        selected_model = self.get_best_model_name()
 
         for horizon in range(1, days + 1):
             pred, lower, upper = None, None, None
+            # A fallback at one horizon must not change what the next one tries first.
+            model_name = selected_model
 
             if model_name == "ensemble" and self.ensemble:
                 base_preds = {}
@@ -206,37 +208,42 @@ class ModelManager:
                     except Exception:
                         pass
 
-            if pred is None and self.tft and self.tft.is_fitted:
-                try:
-                    tft_result = self.tft.predict_intervals(steps=horizon, future_df=features)
-                    pred = float(tft_result["median"][horizon - 1])
-                    lower = float(tft_result["lower"][horizon - 1])
-                    upper = float(tft_result["upper"][horizon - 1])
-                    model_name = "tft"
-                except Exception:
-                    pass
-
-            if pred is None and horizon in self.lgbm_models:
-                try:
-                    l_preds = self.lgbm_models[horizon].predict(
-                        steps=1, future_df=features.tail(1)
-                    )
-                    pred = float(l_preds[0])
-                    model_name = "lgbm"
-                except Exception:
-                    pass
-
-            if pred is None and self.sarima and self.sarima.is_fitted:
-                try:
-                    s_result = self.sarima.predict_intervals(
-                        steps=horizon, future_df=features.tail(horizon)
-                    )
-                    pred = float(s_result["median"][-1])
-                    lower = float(s_result["lower"][-1])
-                    upper = float(s_result["upper"][-1])
-                    model_name = "sarima"
-                except Exception:
-                    pass
+            # Try the selected model first, then the rest in default priority,
+            # so the model that won the held-out comparison is the one served.
+            order = [model_name] if model_name in ("tft", "lgbm", "sarima") else []
+            order += [n for n in ("tft", "lgbm", "sarima") if n not in order]
+            for name in order:
+                if pred is not None:
+                    break
+                if name == "tft" and self.tft and self.tft.is_fitted:
+                    try:
+                        tft_result = self.tft.predict_intervals(steps=horizon, future_df=features)
+                        pred = float(tft_result["median"][horizon - 1])
+                        lower = float(tft_result["lower"][horizon - 1])
+                        upper = float(tft_result["upper"][horizon - 1])
+                        model_name = "tft"
+                    except Exception:
+                        pass
+                elif name == "lgbm" and horizon in self.lgbm_models:
+                    try:
+                        l_preds = self.lgbm_models[horizon].predict(
+                            steps=1, future_df=features.tail(1)
+                        )
+                        pred = float(l_preds[0])
+                        model_name = "lgbm"
+                    except Exception:
+                        pass
+                elif name == "sarima" and self.sarima and self.sarima.is_fitted:
+                    try:
+                        s_result = self.sarima.predict_intervals(
+                            steps=horizon, future_df=features.tail(horizon)
+                        )
+                        pred = float(s_result["median"][-1])
+                        lower = float(s_result["lower"][-1])
+                        upper = float(s_result["upper"][-1])
+                        model_name = "sarima"
+                    except Exception:
+                        pass
 
             if pred is None:
                 pred = float(features["temp_c"].iloc[-1])
