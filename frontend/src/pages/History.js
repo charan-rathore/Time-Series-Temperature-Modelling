@@ -13,12 +13,19 @@ import {
 } from "recharts";
 import { api } from "../api";
 
-function getDefaultStart() {
-  return "2024-06-12";
+const isoDay = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// Open on the most recent 90 days, not a fixed window from the project's
+// first month, so the page shows the station as it is now.
+function getDefaultEnd() {
+  return isoDay(new Date());
 }
 
-function getDefaultEnd() {
-  return "2024-07-11";
+function getDefaultStart() {
+  const d = new Date();
+  d.setDate(d.getDate() - 90);
+  return isoDay(d);
 }
 
 export default function History() {
@@ -89,7 +96,8 @@ export default function History() {
         }}
       >
         <div>
-          <h2>Historical Data</h2>
+          <p className="eyebrow">The record</p>
+          <h2>Every evening on file</h2>
           <p>
             {data
               ? `${data.total_records} records · ${data.location}`

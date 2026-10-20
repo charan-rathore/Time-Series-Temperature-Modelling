@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import Leaderboard from "./pages/Leaderboard";
 import Metrics from "./pages/Metrics";
+import History from "./pages/History";
 import { api } from "./api";
 
 jest.mock("./api", () => ({
@@ -159,4 +160,15 @@ it("flags a one-day metric as too few days to trust instead of headlining it", a
   expect(badges).toHaveLength(1);
   expect(badges[0].closest("section").textContent).toMatch(/lgbm/);
   expect(badges[0].closest("section").textContent).not.toMatch(/sarima/);
+});
+
+it("history opens on the most recent 90 days, not the project's first month", async () => {
+  api.getHistory.mockResolvedValue({ records: [], total_records: 0, location: "Bangalore" });
+  render(<History />);
+  await screen.findByText(/Every evening on file/);
+  const [start, end] = api.getHistory.mock.calls[0];
+  const year = new Date().getFullYear();
+  expect(Number(end.slice(0, 4))).toBe(year);
+  const days = (new Date(end) - new Date(start)) / 86400000;
+  expect(days).toBe(90);
 });

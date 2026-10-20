@@ -143,8 +143,11 @@ export default function Leaderboard() {
     return (
       <>
         <div className="page-header">
-          <h2>Live Accuracy Leaderboard</h2>
-          <p>Comparing ThermoSense vs commercial weather services</p>
+<div>
+          <p className="eyebrow">Accountability</p>
+          <h2>Who got my street right?</h2>
+          <p>ThermoSense against commercial forecasts, scored on what the sensor read.</p>
+        </div>
         </div>
 
         <div className="card" style={{ textAlign: "center", padding: 40 }}>
@@ -268,9 +271,10 @@ export default function Leaderboard() {
         }}
       >
         <div>
-          <h2>Live Accuracy Leaderboard</h2>
+          <p className="eyebrow">Accountability</p>
+          <h2>Who got my street right?</h2>
           <p>
-            Comparing ThermoSense vs commercial weather services · Updated daily
+            ThermoSense against commercial forecasts, scored on what the sensor read.
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
