@@ -235,7 +235,7 @@ export default function Leaderboard() {
               color: "var(--text-secondary)",
             }}
           >
-            The scheduled collector isn’t deployed yet, so nothing arrives on its own. Until it is, collect today’s forecasts by running <code>python -m src.data.baseline_collector --collect</code>.
+            The scheduled collector isn’t deployed yet, so nothing arrives on its own. Until it is, collect today’s forecasts by running <code>python -m src.data.baseline_collector --collect</code>, then record the reference actual with <code>python scripts/record_reference_actual.py</code>.
           </p>
         </div>
       </>

@@ -112,7 +112,7 @@ export default function Dashboard({ onNavigate }) {
             {temperature(tomorrow?.predicted_temp_c)}
             <span>°C</span>
           </div>
-          <p className="hero-caption">Expected <em>tomorrow evening</em>, around 9 PM in Bangalore</p>
+          <p className="hero-caption">Expected <em>tomorrow evening</em>, around 9 PM in {forecast?.location || "Bangalore"}</p>
           <div className="hero-bottom">
             <span>
               {tomorrow

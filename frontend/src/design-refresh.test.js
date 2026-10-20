@@ -129,5 +129,6 @@ it("leaderboard shows the collect command instead of claiming automation that do
   api.getLeaderboardStatus.mockResolvedValue({ initialized: true, forecast_count: 0, actual_count: 0 });
   render(<Leaderboard />);
   expect(await screen.findByText("python -m src.data.baseline_collector --collect")).toBeInTheDocument();
+  expect(screen.getByText("python scripts/record_reference_actual.py")).toBeInTheDocument();
   expect(screen.queryByText(/no action needed/)).toBeNull();
 });

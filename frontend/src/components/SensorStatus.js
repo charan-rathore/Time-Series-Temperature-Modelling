@@ -52,8 +52,15 @@ export default function SensorStatus() {
         ? `${reading.sensor_temp_c.toFixed(1)}°c`
         : null;
     const day = reading.date; // YYYY-MM-DD of the 9 PM reading
+    // Compare dates in the station's timezone (Asia/Kolkata): the API
+    // stores the Bangalore station date, not the viewer's local date.
     const fmt = (d) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(d);
     const now = new Date();
     if (day === fmt(now)) {
       state = "live";

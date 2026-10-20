@@ -47,6 +47,23 @@ from src.data.fetcher import backfill, fetch_forecast_open_meteo, fetch_owm_curr
 from src.data.preprocess import load_processed, run_pipeline, save_processed
 
 
+def _refresh_bundle(processed_df) -> None:
+    """Refresh the served CSV copies in data/bundle/.
+
+    Vercel's function bundle drops committed files under gitignored
+    directories, so the API serves history/features from data/bundle/.
+    """
+    bundle_dir = _PROJECT_ROOT / "data" / "bundle"
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    processed_df.to_csv(bundle_dir / "daily_merged.csv", index=False)
+    try:
+        from src.features.engineer import build_feature_matrix
+        build_feature_matrix(processed_df).to_csv(
+            bundle_dir / "feature_matrix.csv", index=False)
+    except Exception as exc:
+        print(f"  (feature bundle refresh skipped: {exc})")
+
+
 def cmd_backfill(args: argparse.Namespace) -> None:
     """
     Full historical backfill pipeline.
@@ -74,16 +91,7 @@ def cmd_backfill(args: argparse.Namespace) -> None:
     print(f"  Gap-filled rows:  {processed['gap_filled'].sum()}")
     print(f"  Date range:       {processed['date'].min().date()} → "
           f"{processed['date'].max().date()}")
-    # Keep the served copy in data/bundle/ fresh: Vercel does not bundle
-    # files under gitignored directories, so the API reads CSVs from there.
-    bundle_dir = _PROJECT_ROOT / "data" / "bundle"
-    bundle_dir.mkdir(parents=True, exist_ok=True)
-    df.to_csv(bundle_dir / "daily_merged.csv", index=False)
-    try:
-        from src.features.engineer import build_feature_matrix
-        build_feature_matrix(df).to_csv(bundle_dir / "feature_matrix.csv", index=False)
-    except Exception as exc:
-        print(f"  (feature bundle refresh skipped: {exc})")
+    _refresh_bundle(processed)
     print(f"\nOutput: data/processed/daily_merged.parquet")
     print("\nNext step: run Phase 2 (feature engineering)")
     print("  python -c \"from src.features.engineer import build_feature_matrix; "
@@ -131,6 +139,9 @@ def cmd_daily(args: argparse.Namespace) -> None:
         updated = updated.drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
         save_processed(updated)
         print(f"\nAppended {len(new_rows)} new row(s). Total: {len(updated)} rows.")
+
+    # Keep the served CSV bundle in sync with the parquet store
+    _refresh_bundle(load_processed())
 
     # Always refresh the forecast for the next 7 days
     print("\nFetching 7-day forecast for covariate prediction…")

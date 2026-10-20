@@ -148,6 +148,16 @@ def post_feedback(payload: FeedbackRequest, request: Request):
             df = df.sort_values("date").reset_index(drop=True)
 
         df.to_csv(PROCESSED_PATH, index=False)
+        # Mirror into the parquet store that training and ModelManager
+        # read via load_processed(); never fail the receipt over it.
+        try:
+            parquet_path = (
+                PROCESSED_PATH.parent.parent / "processed" / "daily_merged.parquet"
+            )
+            parquet_path.parent.mkdir(parents=True, exist_ok=True)
+            df.to_parquet(parquet_path, index=False)
+        except Exception as mirror_exc:
+            print(f"[feedback] parquet mirror skipped: {mirror_exc}")
     except Exception as e:
         print(f"[feedback] Error persisting observation: {e}")
         raise HTTPException(status_code=503, detail="Observation could not be recorded; please retry") from e
