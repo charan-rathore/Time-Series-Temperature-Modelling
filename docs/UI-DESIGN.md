@@ -83,3 +83,32 @@ The frontend is JavaScript; there is no separate TypeScript gate. A production b
 - Controlled render proxy: seven fresh-context runs per revision after one warmup pair, alternating order, Chromium on local HTTP, 1440x1000, reduced motion, same 30 history rows and three forecasts. Two animation frames after the populated heading: baseline median 330.3 ms (325.3-373.6), redesign 356.1 ms (342.9-376.8). Both make three API requests. This narrow local proxy is 25.8 ms slower, not a speedup; it does not measure production networks, lower-end devices or model inference. The redesign removes chart entrance animations, so it also avoids waiting for an animated data reveal.
 
 Visually inspected settled before/after dashboard screenshots, all six revised pages on mobile/desktop, 320px navigation, and error/empty states. Tables deliberately retain horizontal scrolling within their own focusable region. Production deployment and real-data smoke remain the publication follow-up.
+
+---
+
+## Design taxonomy (added 2026-10-20)
+
+Following "A Taxonomy of Visuals" (jason_swet x Modern Art Direction): every
+visual decision here is deliberate and nameable - an operation, a domain, a
+technique - so the design stays coherent instead of drifting into generic
+dashboard soup.
+
+**Lineage (family):** a field notebook. Cream paper, one green ink, one warm
+accent, serif editorial headlines, hand-drawn marks. Any new element must
+belong to this lineage or it does not ship.
+
+**Operations in use:**
+- *Differentiate.* Contrast carries meaning, never decoration (semantic
+  contrast): solid ink border = trained-model forecast, dashed italic =
+  provisional seasonal average; solid chart line = measured temperature,
+  dashed = grid estimate; the hand-drawn spark = "you are here" in the nav;
+  sensor-live vs sensor-quiet states use different marks, not just words.
+- *Group.* Related facts share one visible grammar: provenance facts live in
+  the station ledger (tabular numerals, hairline rules), brand ethos lives in
+  the dashed sidebar note, controls look like controls and nothing else does.
+- *Sequence.* The landing reads in order: what ThermoSense is (one plain
+  sentence) -> tomorrow's number (largest type on the page) -> the evidence
+  (quiet ledger) -> the record (chart). Visual weight follows that order.
+
+**Rule of thumb:** before adding a visual element, name its operation,
+domain, and technique. If you cannot, it is decoration - cut it.

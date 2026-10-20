@@ -123,7 +123,7 @@ export default function Leaderboard() {
     return (
       <div className="empty-state">
         <Target style={{ width: 48, height: 48 }} />
-        <p>Baseline collection not initialized.</p>
+        <p>The scoreboard is being set up.</p>
         <p
           style={{
             fontSize: "0.85rem",
@@ -131,17 +131,9 @@ export default function Leaderboard() {
             marginTop: 8,
           }}
         >
-          Run{" "}
-          <code
-            style={{
-              background: "var(--surface-elevated)",
-              padding: "2px 6px",
-              borderRadius: 4,
-            }}
-          >
-            python scripts/collect_baselines.py --init
-          </code>{" "}
-          to set up the database.
+          The daily job stores each service&apos;s forecast and checks it
+          against what actually happened. Rankings appear once the first
+          comparisons land.
         </p>
       </div>
     );
@@ -166,8 +158,8 @@ export default function Leaderboard() {
           />
           <h3 style={{ marginBottom: 8 }}>No Rankings Yet</h3>
           <p style={{ color: "var(--text-secondary)", marginBottom: 24 }}>
-            Need at least 3 days of forecasts AND actual sensor readings to
-            compute rankings.
+            Rankings need at least 3 days of stored forecasts checked against
+            actual readings; the daily job adds one day at a time.
           </p>
 
           <div
@@ -243,17 +235,7 @@ export default function Leaderboard() {
               color: "var(--text-secondary)",
             }}
           >
-            Run{" "}
-            <code
-              style={{
-                background: "var(--surface-elevated)",
-                padding: "2px 6px",
-                borderRadius: 4,
-              }}
-            >
-              python scripts/collect_baselines.py
-            </code>{" "}
-            daily to collect forecasts.
+            The daily job collects every forecast automatically; no action needed.
           </p>
         </div>
       </>

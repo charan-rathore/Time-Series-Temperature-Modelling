@@ -64,20 +64,32 @@ export default function Dashboard({ onNavigate }) {
     .slice(-30)
     .map((r) => ({ date: r.date, temp: r.actual_temp_c, api: r.api_temp_c }));
   const model = forecast?.model_used || "Unavailable";
-  const rmse =
-    status?.last_training_results?.ensemble?.day1?.rmse ??
-    status?.last_training_results?.lgbm?.day1?.rmse;
+  const untrained = model === "placeholder" || model === "climatology";
+  const modelLabel = model === "climatology" ? "seasonal average" : model;
+  // Show the error of the model with the strongest held-out evidence,
+  // matching how the API picks what it serves.
+  const training = status?.last_training_results || {};
+  const rmse = Object.values(training)
+    .map((m) => m?.day1)
+    .filter((d) => typeof d?.rmse === "number" && (d?.n_observations ?? 0) >= 7)
+    .sort((a, b) => a.rmse - b.rmse)[0]?.rmse;
   return (
     <>
       <header className="page-header">
         <div>
           <p className="eyebrow">The observation room</p>
           <h2>Station overview</h2>
-          <p>
+          <p className="page-intro">
+            ThermoSense pairs a small temperature sensor at home with the
+            weather forecast and learns the difference between the two, so the
+            number you see is for <em>your street</em>, not the nearest
+            airport. For anyone whose plans depend on the weather right
+            outside their window.
+          </p>
+          <p className="page-location">
             {forecast?.location ||
               history?.location ||
-              "Local temperature station"}{" "}
-            · A closer view of your microclimate
+              "Local temperature station"}
           </p>
         </div>
         <button className="btn btn-secondary" onClick={load}>
@@ -94,13 +106,13 @@ export default function Dashboard({ onNavigate }) {
             <span className="eyebrow">
               Tomorrow · {shortDate(tomorrow?.date)}
             </span>
-            <span className="source-tag">{model}</span>
+            <span className={`source-tag ${untrained ? "source-tag-provisional" : "source-tag-trained"}`}>{modelLabel}</span>
           </div>
           <div className="hero-temperature">
             {temperature(tomorrow?.predicted_temp_c)}
             <span>°C</span>
           </div>
-          <p className="hero-caption">Expected at 9 PM local time</p>
+          <p className="hero-caption">Expected <em>tomorrow evening</em>, around 9 PM your time</p>
           <div className="hero-bottom">
             <span>
               {tomorrow
@@ -114,9 +126,11 @@ export default function Dashboard({ onNavigate }) {
               Forecast details <ArrowUpRight size={16} />
             </button>
           </div>
-          {model === "placeholder" && (
+          {untrained && (
             <p className="hero-caveat">
-              Placeholder estimate, not a trained model forecast.
+              {model === "climatology"
+                ? "Not a trained forecast yet: this is the historical average for this date, shown until the pipeline has enough real readings to learn from."
+                : "Placeholder estimate, not a trained model forecast."}
             </p>
           )}
         </section>
@@ -125,11 +139,19 @@ export default function Dashboard({ onNavigate }) {
           <dl>
             <div>
               <dt>Daily observations</dt>
-              <dd>{status?.data_rows?.toLocaleString() ?? "Unavailable"}</dd>
+              {status?.data_rows ? (
+                <dd>{status.data_rows.toLocaleString()}</dd>
+              ) : (
+                <dd className="dd-pending">none yet</dd>
+              )}
             </div>
             <div>
               <dt>Model artifacts</dt>
-              <dd>{status?.models_available?.length ?? 0}</dd>
+              {status?.models_available?.length ? (
+                <dd>{status.models_available.length}</dd>
+              ) : (
+                <dd className="dd-pending">none yet</dd>
+              )}
             </div>
             <div>
               <dt>Training RMSE · day 1</dt>
@@ -141,7 +163,7 @@ export default function Dashboard({ onNavigate }) {
           <p>
             {status?.data_available
               ? `Dataset: ${status.data_date_range || "date range unavailable"}`
-              : "No dataset loaded. Run a backfill in Pipeline."}
+              : "No readings stored yet. The daily pull fills this in; a backfill from Pipeline seeds it."}
           </p>
           <p className="ledger-note">
             Training scores are not a guarantee of future accuracy.
