@@ -21,6 +21,7 @@ Prerequisites:
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 import warnings
@@ -92,6 +93,45 @@ def prepare_data(config: dict) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame
     return train_df, val_df, test_df
 
 
+def rolling_sarima_forecasts(
+    model: SARIMAXModel,
+    test_df: pd.DataFrame,
+    horizons: list,
+) -> Dict[int, tuple]:
+    """h-day-ahead SARIMA forecasts for every held-out day that has a full lead.
+
+    The forecast for target day d at horizon h is made from the history up to
+    and including day d - h, which is the serving situation and the same
+    pairing as LightGBM (row t predicts day t + h). After each origin the
+    actual observation is fed to a copy of the fitted model, so the saved
+    model is not touched. Returns {h: (pred, lower, upper)}, each an array
+    over the test days with NaN for the first h days, so n = len(test) - h
+    observations are scored per horizon (the old score used n = 1).
+    """
+    fitted = copy.deepcopy(model.model)
+    exog = model._get_exog(test_df)
+    y = test_df["temp_c"].values
+    n = len(y)
+    out = {h: tuple(np.full(n, np.nan) for _ in range(3)) for h in horizons}
+    for t in range(n):
+        # History now ends with test day t, exactly like a LightGBM row t.
+        fitted.update(y[t:t + 1], X=exog[t:t + 1] if exog is not None else None)
+        for h in horizons:
+            if t + h >= n:
+                continue
+            fc, ci = fitted.predict(
+                n_periods=h,
+                X=exog[t + 1:t + 1 + h] if exog is not None else None,
+                return_conf_int=True,
+                alpha=0.2,
+            )
+            pred, lower, upper = out[h]
+            pred[t + h] = fc[-1]
+            lower[t + h] = ci[-1, 0]
+            upper[t + h] = ci[-1, 1]
+    return out
+
+
 def train_sarima(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame,
@@ -112,17 +152,18 @@ def train_sarima(
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     model.save(str(MODELS_DIR / "sarima.pkl"))
 
+    horizons = [h for h in (1, 2, 3) if h <= len(test_df)]
+    forecasts = rolling_sarima_forecasts(model, test_df, horizons)
+    actuals_all = test_df["temp_c"].values
+
     results = {}
-    for horizon in [1, 2, 3]:
-        if horizon <= len(test_df):
-            future_exog = test_df.iloc[:horizon]
-            preds = model.predict(steps=horizon, future_df=future_exog)
-            actuals = test_df["temp_c"].values[:horizon]
-            intervals = model.predict_intervals(steps=horizon, future_df=future_exog)
-            metrics = evaluate_all(actuals, preds, intervals["lower"], intervals["upper"])
-            results[f"day{horizon}"] = metrics
-            print(f"  Day-{horizon}: RMSE={metrics['rmse']:.3f}°C, "
-                  f"MAE={metrics['mae']:.3f}°C")
+    for horizon in horizons:
+        preds, lower, upper = forecasts[horizon]
+        scored = ~np.isnan(preds)
+        metrics = evaluate_all(actuals_all[scored], preds[scored], lower[scored], upper[scored])
+        results[f"day{horizon}"] = metrics
+        print(f"  Day-{horizon}: RMSE={metrics['rmse']:.3f}\u00b0C, "
+              f"MAE={metrics['mae']:.3f}\u00b0C (n={int(scored.sum())} held-out days)")
 
     return results
 
@@ -149,9 +190,11 @@ def train_lgbm(
         model.save(str(MODELS_DIR / f"lgbm_h{horizon}.pkl"))
 
         preds = model.predict(steps=len(test_df), future_df=test_df)
-        actuals_end = min(len(test_df), len(preds))
-        actuals = test_df["temp_c"].values[:actuals_end]
-        preds = preds[:actuals_end]
+        # preds[t] is the forecast for day t + horizon, so it is paired with
+        # the actual of that day: n = len(test_df) - horizon observations.
+        n_pairs = min(len(test_df) - horizon, len(preds))
+        preds = preds[:n_pairs]
+        actuals = test_df["temp_c"].values[horizon:horizon + n_pairs]
 
         metrics = evaluate_all(actuals, preds)
         results[f"day{horizon}"] = metrics
@@ -277,38 +320,49 @@ def train_ensemble(
         return {}
     horizons = list(range(1, max_h + 1))
 
-    def base_predictions(train_for_fit: pd.DataFrame, target_df: pd.DataFrame,
-                         lgbm_val_df: Optional[pd.DataFrame]) -> Dict[str, np.ndarray]:
+    def base_predictions(sarima_fit_df: pd.DataFrame, lgbm_fit_df: pd.DataFrame,
+                         lgbm_es_df: Optional[pd.DataFrame],
+                         target_df: pd.DataFrame) -> Dict[str, np.ndarray]:
         """Predict with freshly trained base models, aligned by TARGET day.
 
-        Row i of every returned array describes target day max_h + i, so one
-        label vector, target_df["temp_c"][max_h:], scores every column. A
-        horizon-h LightGBM model predicts day t + h from features at row t,
-        so its output is shifted by h before it is stacked with SARIMA (whose
-        n-step forecast is already indexed by target day).
+        SARIMA is fitted on sarima_fit_df. LightGBM is fitted on lgbm_fit_df
+        and early-stopped on lgbm_es_df, which must never contain the labels
+        of the rows being predicted.
+
+        Row d of every returned array describes target day d, so
+        target_df["temp_c"][d] is its label. A horizon-h LightGBM model
+        predicts day t + h from features at row t, so its output is shifted
+        by h (NaN for the first h days) before it is stacked with SARIMA
+        (whose n-step forecast is already indexed by target day).
         """
         n = len(target_df)
         sarima_model = SARIMAXModel(sarima_cfg)
-        sarima_model.fit(train_for_fit)
+        sarima_model.fit(sarima_fit_df)
         p = sarima_model.predict(steps=n, future_df=target_df)
         sarima_full = np.zeros(n)
         sarima_full[: len(p)] = p[:n]
-        sarima_cols = np.column_stack([sarima_full[max_h:]] * len(horizons))
+        sarima_cols = np.column_stack([sarima_full] * len(horizons))
 
-        lgbm_cols = np.zeros((n - max_h, len(horizons)))
+        lgbm_cols = np.full((n, len(horizons)), np.nan)
         for h_idx, h in enumerate(horizons):
             m = LGBMForecastModel(lgbm_cfg, horizon=h)
-            m.fit(train_for_fit, val_df=lgbm_val_df)
+            m.fit(lgbm_fit_df, val_df=lgbm_es_df)
             p = m.predict(steps=n, future_df=target_df)
-            # p[t] targets day t + h; target day d = max_h + i needs p[d - h].
-            for i in range(n - max_h):
-                src = max_h + i - h
-                if src < len(p):
-                    lgbm_cols[i, h_idx] = p[src]
+            # p[t] targets day t + h, so target day d is p[d - h] (d >= h).
+            for d in range(h, n):
+                if d - h < len(p):
+                    lgbm_cols[d, h_idx] = p[d - h]
         return {"sarima": sarima_cols, "lgbm": lgbm_cols}
 
     # 1) Fit the stacker on validation-period predictions (test untouched).
-    val_preds = base_predictions(train_df, val_df, val_df)
+    #    The base models see the training split only. LightGBM early-stops on
+    #    the tail of that split: early-stopping on val_df would pick the
+    #    boosting round using the very labels the stacker then learns from.
+    es_rows = max(max_h + 1, len(train_df) // 5)
+    val_preds = base_predictions(
+        train_df, train_df.iloc[:-es_rows], train_df.iloc[-es_rows:], val_df,
+    )
+    val_preds = {name: arr[max_h:] for name, arr in val_preds.items()}
     val_actuals = val_df["temp_c"].values[max_h:]
     val_actuals_2d = np.column_stack([val_actuals] * len(horizons))
 
@@ -323,17 +377,20 @@ def train_ensemble(
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     stacker.save(str(MODELS_DIR / "ensemble.pkl"))
 
-    # 2) Serving base models see train+val; the frozen stacker is evaluated
-    #    on every held-out test day that has all horizons available.
+    # 2) Evaluate with the base models that are served: SARIMA fitted on
+    #    train+val (train_sarima) and LightGBM fitted on train with val for
+    #    early stopping (train_lgbm). The frozen stacker is scored on every
+    #    held-out test day that has all horizons available.
     full_train = pd.concat([train_df, val_df], ignore_index=True)
-    test_preds = base_predictions(full_train, test_df, val_df)
-    actuals = test_df["temp_c"].values[max_h:]
-
+    test_preds = base_predictions(full_train, train_df, val_df, test_df)
     results = {}
     for h_idx, h in enumerate(horizons):
+        # Horizon h pairs the prediction for target day d with the actual of
+        # day d, for d = h .. n - 1, so n = len(test_df) - h observations.
         X_meta = np.column_stack([
-            test_preds[name][:, h_idx] for name in available_base_models
+            test_preds[name][h:, h_idx] for name in available_base_models
         ])
+        actuals = test_df["temp_c"].values[h:]
         ens_preds = stacker.meta_models[h].predict(X_meta)
         metrics = evaluate_all(actuals, ens_preds)
         results[f"day{h}"] = metrics
