@@ -101,6 +101,47 @@ def health():
     return {"status": "ok", "version": "2.0.0"}
 
 
+@app.get("/api/health/details", tags=["Health"])
+def health_details():
+    """Freshness, data quality and serving state in one place.
+
+    status is "ok" or "degraded"; degraded means a person should look (stale
+    data or no model loaded), not that the API is down. The plain /api/health
+    stays a cheap liveness probe.
+    """
+    manager = getattr(app.state, "model_manager", None)
+    problems = []
+    quality = None
+    try:
+        from src.data.preprocess import load_processed
+        from src.quality.checks import summarize
+        quality = summarize(load_processed())
+        if quality["freshness"]["stale"]:
+            problems.append("data_stale")
+    except Exception as exc:
+        problems.append("data_unreadable")
+        quality = {"error": type(exc).__name__}
+    serving = {"models_loaded": bool(manager and manager.is_loaded)}
+    if manager is not None and manager.is_loaded:
+        serving["selected_model"] = manager.get_best_model_name()
+        serving["available"] = [
+            n for n, ok in (
+                ("sarima", bool(manager.sarima and manager.sarima.is_fitted)),
+                ("lgbm", bool(manager.lgbm_models)),
+                ("ensemble", manager._ensemble_bases_loaded()),
+            ) if ok
+        ]
+    else:
+        problems.append("no_model_loaded")
+    try:
+        from src.models import registry
+        serving["registry_champions"] = registry.load()["champions"]
+    except Exception:
+        serving["registry_champions"] = {}
+    return {"status": "degraded" if problems else "ok", "problems": problems,
+            "serving": serving, "data_quality": quality}
+
+
 @app.get("/api/ready", tags=["Health"])
 def readiness():
     """Readiness for model-backed forecasts, not merely a running process."""
