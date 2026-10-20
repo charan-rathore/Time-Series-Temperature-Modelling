@@ -91,7 +91,7 @@ it("shows 'none yet' instead of bare zeros when the station has no data", async 
   api.getForecast.mockRejectedValue(new Error("offline"));
   api.getHistory.mockResolvedValue({ records: [], total_records: 0 });
   render(<Dashboard onNavigate={jest.fn()} />);
-  await screen.findByRole("heading", { name: "Station overview" });
+  await screen.findByRole("heading", { name: /Cooling is about a tenth/ });
   const ledger = screen.getByRole("region", { name: "Station record" });
   expect(within(ledger).getAllByText("none yet")).toHaveLength(2);
 });
@@ -129,7 +129,9 @@ it("labels the forecast target hour in the station timezone, not the viewer's", 
   });
   api.getHistory.mockResolvedValue({ records: [], total_records: 0 });
   render(<Dashboard onNavigate={jest.fn()} />);
-  expect(await screen.findByText(/9 PM in Bangalore/)).toBeInTheDocument();
+  const caption = await screen.findByText((_, el) =>
+    el.tagName === "P" && /outside at 9 PM/.test(el.textContent));
+  expect(caption).toBeInTheDocument();
 });
 
 it("leaderboard shows the collect command instead of claiming automation that does not exist", async () => {
