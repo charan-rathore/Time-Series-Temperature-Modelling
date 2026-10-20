@@ -68,10 +68,13 @@ export default function Metrics() {
         <p>Train a model in Pipeline to see its recorded evaluation.</p>
       </div>
     );
+  // A "best" badge needs evidence: at least a week of paired observations,
+  // otherwise a lucky single day would wear the crown.
   const best = models.reduce(
     (b, [name, h]) =>
       typeof h.day1?.rmse === "number" &&
       Number.isFinite(h.day1.rmse) &&
+      (h.day1?.n_observations ?? 0) >= 7 &&
       h.day1.rmse < b.rmse
         ? { name, rmse: h.day1.rmse }
         : b,

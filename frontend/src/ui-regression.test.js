@@ -51,7 +51,7 @@ beforeEach(() => {
     data_available: true,
     data_rows: 30,
     models_available: ["lgbm_h1"],
-    last_training_results: { lgbm: { day1: { rmse: 0 } } },
+    last_training_results: { lgbm: { day1: { rmse: 0, n_observations: 30 } } },
     active_jobs: {},
   });
   api.getForecast.mockResolvedValue(forecast);

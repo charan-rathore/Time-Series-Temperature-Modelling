@@ -15,6 +15,8 @@ async function request(path, options = {}) {
 export const api = {
   health: () => request('/health'),
 
+  getSensorLatest: () => request('/sensor/latest'),
+
   getForecast: (days = 3) => request(`/forecast?days=${days}`),
   postFeedback: (date, actual_temp_c) =>
     request('/forecast/feedback', {

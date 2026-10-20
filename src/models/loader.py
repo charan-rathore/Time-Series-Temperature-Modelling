@@ -117,15 +117,39 @@ class ModelManager:
         print(f"[ModelManager] Loaded models: {loaded if loaded else 'none'}")
 
     def get_best_model_name(self) -> str:
-        """Return the name of the best available model."""
+        """Return the best available model by held-out test RMSE.
+
+        Measured evidence beats assumed precedence: the ensemble is only
+        served when its honest holdout error actually wins. Models with
+        fewer than a week of held-out observations are not trusted with
+        the pick.
+        """
+        available = []
         if self.ensemble and self.ensemble.is_fitted:
-            return "ensemble"
+            available.append("ensemble")
         if self.tft and self.tft.is_fitted:
-            return "tft"
+            available.append("tft")
         if self.lgbm_models:
-            return "lgbm"
+            available.append("lgbm")
         if self.sarima and self.sarima.is_fitted:
-            return "sarima"
+            available.append("sarima")
+        if not available:
+            return "placeholder"
+
+        best, best_rmse = None, None
+        for name in available:
+            day1 = (self._results or {}).get(name, {}).get("day1", {}) or {}
+            rmse = day1.get("rmse")
+            n = day1.get("n_observations") or 0
+            if rmse is None or n < 7:
+                continue
+            if best_rmse is None or rmse < best_rmse:
+                best, best_rmse = name, rmse
+        if best:
+            return best
+        for name in ("ensemble", "tft", "lgbm", "sarima"):
+            if name in available:
+                return name
         return "placeholder"
 
     def forecast(self, days: int = 3) -> List[Dict[str, Any]]:
