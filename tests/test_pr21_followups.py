@@ -62,9 +62,28 @@ def test_reference_is_stored_when_no_actual_exists(tmp_path, monkeypatch):
 
 
 def test_reference_exits_nonzero_when_write_fails(tmp_path, monkeypatch):
+    import sqlite3
     mod, db, day = _run_reference(tmp_path, monkeypatch)
-    monkeypatch.setattr(mod, "store_actual", lambda *a, **k: False)
+
+    def boom(*a, **k):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(mod, "store_reference", boom)
     assert mod.main() == 1
+
+
+def test_reference_write_is_one_atomic_statement(tmp_path, monkeypatch):
+    """A sensor row that exists at write time survives; an older reference row is refreshed."""
+    mod, db, day = _run_reference(tmp_path, monkeypatch, existing_source="raspberry_pi")
+    assert mod.store_reference(db, day, 30.0, 50.0, 29.0) is False
+    assert _row(db, day) == (22.5, "raspberry_pi")
+
+    other = tmp_path / "other"
+    other.mkdir()
+    mod2, db2, day2 = _run_reference(other, monkeypatch)
+    assert mod2.store_reference(db2, day2, 30.0, 50.0, 29.0) is True
+    assert mod2.store_reference(db2, day2, 31.0, 50.0, 29.0) is True
+    assert _row(db2, day2) == (31.0, "open_meteo_reference")
 
 
 # --- sensor endpoints keep arbitrary uploader sources -----------------------
@@ -124,6 +143,14 @@ def test_forecast_falls_back_when_selected_model_fails(monkeypatch):
     manager.lgbm_models = {1: SimpleNamespace(predict=lambda **kw: (_ for _ in ()).throw(RuntimeError("x")))}
     result = manager.forecast(days=1)[0]
     assert result["model_used"] == "sarima"
+
+
+def test_fallback_at_one_horizon_does_not_change_the_next_horizons_choice(monkeypatch):
+    manager = _manager("lgbm", monkeypatch)
+    ok = lambda **kw: np.array([50.0])
+    manager.lgbm_models = {1: SimpleNamespace(predict=ok), 3: SimpleNamespace(predict=ok)}
+    used = [r["model_used"] for r in manager.forecast(days=3)]
+    assert used == ["lgbm", "sarima", "lgbm"]
 
 
 # --- ensemble training: horizon alignment and no TFT KeyError ---------------
