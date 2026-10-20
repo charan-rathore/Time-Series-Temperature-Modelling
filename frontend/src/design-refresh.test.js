@@ -17,8 +17,15 @@ jest.mock("./api", () => ({
   },
 }));
 
+// Same station-timezone formatter the component uses, so the mocked
+// "today" is the Bangalore station date on any CI runner.
 const fmt = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 
 beforeEach(() => jest.clearAllMocks());
 

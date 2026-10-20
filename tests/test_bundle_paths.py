@@ -17,18 +17,22 @@ def _gitignore_rules():
     rules = []
     for line in (ROOT / ".gitignore").read_text().splitlines():
         line = line.strip()
-        if line and not line.startswith("#") and not line.startswith("!"):
+        if line and not line.startswith("#"):
             rules.append(line)
     return rules
 
 
 def _is_ignored(rel: str, rules) -> bool:
+    """Last matching gitignore rule wins, including ! negations."""
+    ignored = False
     for r in rules:
-        if r.endswith("/") and (rel + "/").startswith(r):
-            return True
-        if fnmatch.fnmatch(rel, r) or fnmatch.fnmatch(Path(rel).name, r):
-            return True
-    return False
+        neg = r.startswith("!")
+        pat = r[1:] if neg else r
+        if pat.endswith("/") and (rel + "/").startswith(pat):
+            ignored = not neg
+        elif fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(Path(rel).name, pat):
+            ignored = not neg
+    return ignored
 
 
 def _serving_paths():
@@ -39,14 +43,24 @@ def _serving_paths():
     return {str(p.resolve().relative_to(ROOT)) for p in paths}
 
 
-def test_serving_data_paths_are_not_gitignored():
+def _deployed_artifacts():
+    """Everything the live function serves that must survive bundling."""
+    artifacts = set(_serving_paths())
+    artifacts.add("data/baselines/forecasts.db")
+    for p in (ROOT / "models").glob("*.pkl"):
+        artifacts.add(str(p.relative_to(ROOT)))
+    artifacts.add("models/results.json")
+    return artifacts
+
+
+def test_deployed_artifacts_are_not_gitignored():
     rules = _gitignore_rules()
-    for rel in _serving_paths():
+    for rel in _deployed_artifacts():
         assert not _is_ignored(rel, rules), f"{rel} is covered by .gitignore"
 
 
-def test_serving_data_files_are_committed():
-    for rel in _serving_paths():
+def test_deployed_artifacts_are_committed():
+    for rel in _deployed_artifacts():
         assert (ROOT / rel).exists(), f"{rel} missing from the repo"
 
 
