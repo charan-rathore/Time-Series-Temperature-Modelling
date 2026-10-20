@@ -27,8 +27,8 @@ from pydantic import BaseModel, Field, field_validator
 router = APIRouter()
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-PROCESSED_PATH = _PROJECT_ROOT / "data" / "processed" / "daily_merged.parquet"
-FEATURES_PATH = _PROJECT_ROOT / "data" / "features" / "feature_matrix.parquet"
+PROCESSED_PATH = _PROJECT_ROOT / "data" / "bundle" / "daily_merged.csv"
+FEATURES_PATH = _PROJECT_ROOT / "data" / "bundle" / "feature_matrix.csv"
 MODELS_DIR = _PROJECT_ROOT / "models"
 RESULTS_PATH = MODELS_DIR / "results.json"
 
@@ -203,7 +203,7 @@ def get_status(request: Request):
     data_range = None
     if data_available:
         try:
-            df = pd.read_parquet(PROCESSED_PATH)
+            df = pd.read_csv(PROCESSED_PATH, parse_dates=["date"])
             data_rows = len(df)
             dates = pd.to_datetime(df["date"])
             data_range = f"{dates.min().date()} to {dates.max().date()}"
@@ -214,7 +214,7 @@ def get_status(request: Request):
     features_rows = 0
     if features_available:
         try:
-            features_rows = len(pd.read_parquet(FEATURES_PATH))
+            features_rows = len(pd.read_csv(FEATURES_PATH))
         except Exception:
             pass
 

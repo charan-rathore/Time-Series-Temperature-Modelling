@@ -287,3 +287,11 @@ config/local_*.yaml
 config/secrets.yaml
 .vercel
 .env*
+
+# Deployed artifacts MUST survive Vercel function bundling: the live API
+# serves these files, so they are explicitly un-ignored.
+!models/*.pkl
+!models/results.json
+!data/baselines/forecasts.db
+!data/bundle/
+!models/*.ckpt

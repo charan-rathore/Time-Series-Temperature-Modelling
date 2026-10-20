@@ -64,8 +64,10 @@ export default function Dashboard({ onNavigate }) {
     .slice(-30)
     .map((r) => ({ date: r.date, temp: r.actual_temp_c, api: r.api_temp_c }));
   const model = forecast?.model_used || "Unavailable";
-  const untrained = model === "placeholder" || model === "climatology";
-  const modelLabel = model === "climatology" ? "seasonal average" : model;
+  const untrained = !forecast || ["placeholder", "climatology", "fallback", "Unavailable"].includes(model);
+  const modelLabel = model === "climatology" ? "seasonal average"
+    : model === "fallback" ? "last recorded reading"
+    : model;
   // Show the error of the model with the strongest held-out evidence,
   // matching how the API picks what it serves.
   const training = status?.last_training_results || {};
@@ -112,7 +114,7 @@ export default function Dashboard({ onNavigate }) {
             {temperature(tomorrow?.predicted_temp_c)}
             <span>°C</span>
           </div>
-          <p className="hero-caption">Expected <em>tomorrow evening</em>, around 9 PM your time</p>
+          <p className="hero-caption">Expected <em>tomorrow evening</em>, around 9 PM in {forecast?.location || "Bangalore"}</p>
           <div className="hero-bottom">
             <span>
               {tomorrow
@@ -130,6 +132,8 @@ export default function Dashboard({ onNavigate }) {
             <p className="hero-caveat">
               {model === "climatology"
                 ? "Not a trained forecast yet: this is the historical average for this date, shown until the pipeline has enough real readings to learn from."
+                : model === "fallback"
+                ? "Not a trained forecast yet: this repeats the latest recorded temperature, shown until the pipeline has enough real readings to learn from."
                 : "Placeholder estimate, not a trained model forecast."}
             </p>
           )}
