@@ -127,7 +127,7 @@ models:
     base_models: ["sarima", "lgbm", "tft"]
 
 evaluation:
-  test_split_days: 14
+  test_split_days: 30
   cv_folds: 5
   metrics: ["mae", "rmse", "mape", "skill_score"]
   coverage_quantile: 0.9

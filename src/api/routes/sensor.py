@@ -104,9 +104,13 @@ def get_latest_reading():
     conn = sqlite3.connect(str(_DB_PATH))
     conn.row_factory = sqlite3.Row
     
+    # Only real sensor uploads count as sensor readings. Reference actuals
+    # (e.g. open_meteo_reference written by the daily job) must not pose as
+    # a live sensor.
     cursor = conn.execute("""
         SELECT date, sensor_temp_c, sensor_humidity_pct, recorded_at, source
         FROM daily_actuals
+        WHERE source LIKE '%sensor%'
         ORDER BY date DESC
         LIMIT 1
     """)
@@ -145,7 +149,7 @@ def get_sensor_history(
     cursor = conn.execute("""
         SELECT date, sensor_temp_c, sensor_humidity_pct, api_temp_c, recorded_at, source
         FROM daily_actuals
-        WHERE date >= ? AND date <= ?
+        WHERE date >= ? AND date <= ? AND source LIKE '%sensor%'
         ORDER BY date DESC
         LIMIT ?
     """, (start.isoformat(), end.isoformat(), limit))

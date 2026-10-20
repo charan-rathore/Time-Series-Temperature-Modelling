@@ -26,6 +26,7 @@ import sys
 import warnings
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -249,82 +250,82 @@ def train_ensemble(
     lgbm_results: dict,
     tft_results: dict,
 ) -> dict:
-    """Train ensemble stacker from individual model predictions."""
+    """Train ensemble stacker on validation-period predictions only.
+
+    Honesty boundary: the stacker learns its weights from validation-period
+    predictions made by base models trained on the training split alone.
+    The held-out test window is touched only afterwards, to evaluate the
+    frozen stacker over every test day (n = len(test_df) per horizon).
+    Fitting the stacker on test-period predictions, as this function once
+    did, makes the reported "test" metrics in-sample and meaningless.
+    """
     print("\n" + "=" * 60)
     print("  Training Ensemble Stacker")
     print("=" * 60)
 
     ensemble_cfg = config["models"]["ensemble"]
-
     sarima_cfg = config["models"]["sarima"]
-    sarima_model = SARIMAXModel(sarima_cfg)
-    full_train = pd.concat([train_df, val_df], ignore_index=True)
-    sarima_model.fit(full_train)
-
     lgbm_cfg = config["models"]["lgbm"]
-    lgbm_models = {}
-    for h in [1, 2, 3]:
-        m = LGBMForecastModel(lgbm_cfg, horizon=h)
-        m.fit(train_df, val_df=val_df)
-        lgbm_models[h] = m
-
-    n_test = len(test_df)
-    max_h = min(3, n_test)
-
-    oof_sarima = np.zeros((n_test, max_h))
-    oof_lgbm = np.zeros((n_test, max_h))
-
-    for h_idx, h in enumerate(range(1, max_h + 1)):
-        sarima_preds = sarima_model.predict(steps=n_test, future_df=test_df)
-        if len(sarima_preds) >= n_test:
-            oof_sarima[:, h_idx] = sarima_preds[:n_test]
-        else:
-            oof_sarima[:len(sarima_preds), h_idx] = sarima_preds
-
-        lgbm_preds = lgbm_models[h].predict(steps=n_test, future_df=test_df)
-        if len(lgbm_preds) >= n_test:
-            oof_lgbm[:, h_idx] = lgbm_preds[:n_test]
-        else:
-            oof_lgbm[:len(lgbm_preds), h_idx] = lgbm_preds
-
-    actuals = test_df["temp_c"].values
 
     available_base_models = ["sarima", "lgbm"]
-    oof_preds = {"sarima": oof_sarima, "lgbm": oof_lgbm}
-
     if _TFT_AVAILABLE and tft_results:
-        oof_tft = np.zeros((n_test, max_h))
-        for h_idx in range(max_h):
-            key = f"day{h_idx + 1}"
-            if key in tft_results:
-                oof_tft[:, h_idx] = tft_results[key].get("mae", 0)
-        oof_preds["tft"] = oof_tft
         available_base_models.append("tft")
 
-    actuals_2d = np.column_stack([actuals] * max_h) if actuals.ndim == 1 else actuals
+    def base_predictions(train_for_fit: pd.DataFrame, target_df: pd.DataFrame,
+                         lgbm_val_df: Optional[pd.DataFrame]) -> Dict[str, np.ndarray]:
+        """Predict every day of target_df with freshly trained base models."""
+        n = len(target_df)
+        max_h = min(3, n)
+        preds: Dict[str, np.ndarray] = {}
+        sarima_model = SARIMAXModel(sarima_cfg)
+        sarima_model.fit(train_for_fit)
+        sarima_cols = np.zeros((n, max_h))
+        for h_idx in range(max_h):
+            p = sarima_model.predict(steps=n, future_df=target_df)
+            sarima_cols[: len(p), h_idx] = p[:n]
+        preds["sarima"] = sarima_cols
+
+        lgbm_cols = np.zeros((n, max_h))
+        for h_idx, h in enumerate(range(1, max_h + 1)):
+            m = LGBMForecastModel(lgbm_cfg, horizon=h)
+            m.fit(train_for_fit, val_df=lgbm_val_df)
+            p = m.predict(steps=n, future_df=target_df)
+            lgbm_cols[: len(p), h_idx] = p[:n]
+        preds["lgbm"] = lgbm_cols
+        return preds
+
+    # 1) Fit the stacker on validation-period predictions (test untouched).
+    val_preds = base_predictions(train_df, val_df, val_df)
+    val_actuals = val_df["temp_c"].values
+    val_actuals_2d = np.column_stack([val_actuals] * min(3, len(val_df)))
 
     ensemble_cfg_with_models = {**ensemble_cfg, "base_models": available_base_models}
     stacker = EnsembleStacker(ensemble_cfg_with_models)
-    stacker.fit_from_oof(oof_preds, actuals_2d, horizons=list(range(1, max_h + 1)))
+    stacker.fit_from_oof(
+        {name: val_preds[name] for name in available_base_models},
+        val_actuals_2d,
+        horizons=list(range(1, min(3, len(val_df)) + 1)),
+    )
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     stacker.save(str(MODELS_DIR / "ensemble.pkl"))
 
+    # 2) Serving base models see train+val; the frozen stacker is evaluated
+    #    on every held-out test day.
+    full_train = pd.concat([train_df, val_df], ignore_index=True)
+    test_preds = base_predictions(full_train, test_df, val_df)
+    actuals = test_df["temp_c"].values
+
     results = {}
-    for h_idx, h in enumerate(range(1, max_h + 1)):
-        base_preds_h = {}
-        for name in available_base_models:
-            base_preds_h[name] = np.array([oof_preds[name][0, h_idx]])
-
-        ens_pred_h = stacker.meta_models[h].predict(
-            np.column_stack([base_preds_h[n] for n in available_base_models])
-        )
-
-        actual_h = actuals[0] if h_idx < len(actuals) else None
-        if actual_h is not None:
-            metrics = evaluate_all(np.array([actual_h]), ens_pred_h)
-            results[f"day{h}"] = metrics
-            print(f"  Day-{h}: RMSE={metrics['rmse']:.3f}°C, MAE={metrics['mae']:.3f}°C")
+    for h_idx, h in enumerate(range(1, min(3, len(test_df)) + 1)):
+        X_meta = np.column_stack([
+            test_preds[name][:, h_idx] for name in available_base_models
+        ])
+        ens_preds = stacker.meta_models[h].predict(X_meta)
+        metrics = evaluate_all(actuals, ens_preds)
+        results[f"day{h}"] = metrics
+        print(f"  Day-{h}: RMSE={metrics['rmse']:.3f}\u00b0C, MAE={metrics['mae']:.3f}\u00b0C "
+              f"(n={len(actuals)} held-out days)")
 
     return results
 
