@@ -91,3 +91,19 @@ def test_feedback_mirrors_into_parquet_training_store(tmp_path, monkeypatch):
     df = pd.read_parquet(mirror)
     assert df.loc[0, "temp_c"] == 27.0
     assert bool(df.loc[0, "is_sensor_reading"])
+
+
+def test_load_processed_falls_back_to_bundle_csv(tmp_path, monkeypatch):
+    """Inference must work where the parquet is absent (Vercel bundle):
+    load_processed() falls back to data/bundle/daily_merged.csv."""
+    import pandas as pd
+    from src.data import preprocess
+
+    bundle = tmp_path / "data" / "bundle"
+    bundle.mkdir(parents=True)
+    pd.DataFrame({"date": pd.to_datetime(["2026-10-18", "2026-10-19"]),
+                  "temp_c": [24.0, 25.0]}).to_csv(bundle / "daily_merged.csv", index=False)
+    monkeypatch.setattr(preprocess, "_PROJECT_ROOT", tmp_path)
+    df = preprocess.load_processed(str(tmp_path / "data" / "processed" / "daily_merged.parquet"))
+    assert len(df) == 2
+    assert list(df["temp_c"]) == [24.0, 25.0]
