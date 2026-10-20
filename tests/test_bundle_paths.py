@@ -182,3 +182,21 @@ def test_committed_bundle_keeps_sensor_rows_with_covariates():
     kept = f[f["is_sensor_reading"] == True]
     assert len(kept) > 0, "feature matrix dropped every sensor row"
     assert (kept["api_bias"].abs() > 0).any(), "api_bias is flat zero on sensor rows"
+
+
+def test_load_processed_survives_unreadable_parquet(tmp_path, monkeypatch):
+    """A parquet that exists but cannot be read (pyarrow missing on a slim
+    runtime) must fall back to the bundle CSV instead of failing inference."""
+    import pandas as pd
+    from src.data import preprocess
+
+    (tmp_path / "data" / "bundle").mkdir(parents=True)
+    (tmp_path / "data" / "processed").mkdir(parents=True)
+    pd.DataFrame({"date": pd.to_datetime(["2026-10-18", "2026-10-19"]),
+                  "temp_c": [24.0, 25.0]}).to_csv(
+        tmp_path / "data" / "bundle" / "daily_merged.csv", index=False)
+    bad = tmp_path / "data" / "processed" / "daily_merged.parquet"
+    bad.write_bytes(b"not a parquet file")
+    monkeypatch.setattr(preprocess, "_PROJECT_ROOT", tmp_path)
+    df = preprocess.load_processed(str(bad))
+    assert list(df["temp_c"]) == [24.0, 25.0]

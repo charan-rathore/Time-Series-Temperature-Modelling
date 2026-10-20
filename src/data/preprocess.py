@@ -81,12 +81,23 @@ def load_processed(path: Optional[str] = None) -> pd.DataFrame:
     if path is None:
         path = str(_PROJECT_ROOT / cfg["data"]["processed_dir"] / PROCESSED_FILENAME)
     p = Path(path)
-    if not p.exists():
-        bundle_csv = _PROJECT_ROOT / "data" / "bundle" / "daily_merged.csv"
-        if bundle_csv.exists():
-            df = pd.read_csv(bundle_csv, parse_dates=["date"])
-            print(f"[preprocess] Loaded processed data: {len(df)} rows from {bundle_csv} (bundle fallback)")
+    bundle_csv = _PROJECT_ROOT / "data" / "bundle" / "daily_merged.csv"
+    # Prefer the parquet store, but any failure to read it (file absent, or
+    # pyarrow missing in a slim runtime such as Vercel's) falls back to the
+    # committed CSV copy rather than taking inference down.
+    if p.exists():
+        try:
+            df = pd.read_parquet(path)
+            print(f"[preprocess] Loaded processed data: {len(df)} rows from {path}")
             return df
+        except Exception as exc:
+            if not bundle_csv.exists():
+                raise
+            print(f"[preprocess] Parquet unreadable ({type(exc).__name__}); using bundle CSV")
+    if bundle_csv.exists():
+        df = pd.read_csv(bundle_csv, parse_dates=["date"])
+        print(f"[preprocess] Loaded processed data: {len(df)} rows from {bundle_csv} (bundle fallback)")
+        return df
     df = pd.read_parquet(path)
     print(f"[preprocess] Loaded processed data: {len(df)} rows from {path}")
     return df
