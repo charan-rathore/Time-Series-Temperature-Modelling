@@ -51,7 +51,7 @@ it("says it is waiting instead of showing a zero when no sensor has reported", a
   ).toBeInTheDocument();
 });
 
-it("labels an untrained climatology forecast as the last recorded reading", async () => {
+it("labels an untrained climatology forecast as the seasonal average", async () => {
   api.getStatus.mockResolvedValue({
     data_available: true,
     data_rows: 30,
@@ -75,8 +75,8 @@ it("labels an untrained climatology forecast as the last recorded reading", asyn
   });
   api.getHistory.mockResolvedValue({ records: [], total_records: 0 });
   render(<Dashboard onNavigate={jest.fn()} />);
-  expect(await screen.findByText("last recorded reading")).toBeInTheDocument();
-  expect(screen.getByText(/repeats the latest recorded temperature/)).toBeInTheDocument();
+  expect(await screen.findByText("seasonal average")).toBeInTheDocument();
+  expect(screen.getByText(/historical average for this date/)).toBeInTheDocument();
   expect(document.querySelector(".source-tag-provisional")).not.toBeNull();
 });
 
