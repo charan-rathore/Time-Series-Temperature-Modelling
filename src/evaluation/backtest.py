@@ -111,6 +111,28 @@ def _rmse(a: np.ndarray, p: np.ndarray) -> float:
     return float(np.sqrt(np.mean((a - p) ** 2)))
 
 
+def backtest_errors(
+    df: pd.DataFrame,
+    forecasters: Dict[str, Forecaster],
+    horizons: Sequence[int],
+    folds: Sequence[Tuple[int, int, int]],
+) -> Dict[str, Dict[int, List[List[float]]]]:
+    """Signed errors (actual - forecast), per forecaster, horizon and fold."""
+    errs: Dict[str, Dict[int, List[List[float]]]] = {
+        name: {h: [] for h in horizons} for name in forecasters
+    }
+    for train_end, t0, t1 in folds:
+        train_df, fold_df = df.iloc[:train_end], df.iloc[t0:t1]
+        y = fold_df[TARGET].to_numpy(dtype=float)
+        for name, fn in forecasters.items():
+            for h in horizons:
+                p = np.asarray(fn(train_df, fold_df, h), dtype=float)
+                if len(p) != len(y) - h:
+                    raise ValueError(f"{name} h={h}: got {len(p)} forecasts, need {len(y) - h}")
+                errs[name][h].append((y[h:] - p).tolist())
+    return errs
+
+
 def run_backtest(
     df: pd.DataFrame,
     forecasters: Dict[str, Forecaster],
@@ -129,18 +151,7 @@ def run_backtest(
     """
     df = df.reset_index(drop=True)
     folds = rolling_origin_folds(len(df), n_folds, fold_len, min_train)
-    errs: Dict[str, Dict[int, List[List[float]]]] = {
-        name: {h: [] for h in horizons} for name in forecasters
-    }
-    for train_end, t0, t1 in folds:
-        train_df, fold_df = df.iloc[:train_end], df.iloc[t0:t1]
-        y = fold_df[TARGET].to_numpy(dtype=float)
-        for name, fn in forecasters.items():
-            for h in horizons:
-                p = np.asarray(fn(train_df, fold_df, h), dtype=float)
-                if len(p) != len(y) - h:
-                    raise ValueError(f"{name} h={h}: got {len(p)} forecasts, need {len(y) - h}")
-                errs[name][h].append((y[h:] - p).tolist())
+    errs = backtest_errors(df, forecasters, horizons, folds)
 
     models: dict = {}
     for name in forecasters:
