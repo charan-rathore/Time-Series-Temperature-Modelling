@@ -34,3 +34,24 @@ def test_saved_lgbm_day1_matches_committed_artifact():
     assert fresh["rmse"] == pytest.approx(saved["rmse"], abs=1e-6)
     assert fresh["mae"] == pytest.approx(saved["mae"], abs=1e-6)
     assert saved["n_observations"] == fresh["n_observations"]
+
+
+def test_saved_ensemble_scores_match_training_evaluation(tmp_path, monkeypatch):
+    """Re-run the training-time ensemble evaluation (same code path,
+    artifact saves redirected) and require the committed ensemble metrics
+    to match - stale results.json or ensemble.pkl fails."""
+    import numpy as np
+    import scripts.train_models as tm
+    from src.evaluation.metrics import evaluate_all
+
+    config = yaml.safe_load(open(ROOT / "config" / "config.yaml"))
+    train_df, val_df, test_df = tm.prepare_data(config)
+    monkeypatch.setattr(tm, "MODELS_DIR", tmp_path)
+    fresh = tm.train_ensemble(
+        train_df, val_df, test_df, config,
+        sarima_results={}, lgbm_results={}, tft_results={},
+    )
+    saved = json.load(open(ROOT / "models" / "results.json"))["ensemble"]
+    for day, metrics in fresh.items():
+        assert metrics["rmse"] == pytest.approx(saved[day]["rmse"], abs=1e-6), day
+        assert saved[day]["n_observations"] == metrics["n_observations"], day
