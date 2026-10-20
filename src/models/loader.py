@@ -168,10 +168,12 @@ class ModelManager:
             return self._placeholder_forecast(days)
 
         forecasts = []
-        model_name = self.get_best_model_name()
+        selected_model = self.get_best_model_name()
 
         for horizon in range(1, days + 1):
             pred, lower, upper = None, None, None
+            # A fallback at one horizon must not change what the next one tries first.
+            model_name = selected_model
 
             if model_name == "ensemble" and self.ensemble:
                 base_preds = {}
