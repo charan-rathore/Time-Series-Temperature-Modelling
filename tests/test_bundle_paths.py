@@ -131,10 +131,16 @@ def test_daily_mode_reads_the_bundle_when_parquet_is_absent(tmp_path, monkeypatc
     import scripts.run_pipeline as rp
     from src.data import preprocess
 
+    # Fixture dates follow the real clock: cmd_daily compares the last
+    # bundled date against yesterday, so hard-coded dates would silently
+    # switch the test into the fetch branch as time passes.
+    from datetime import date, timedelta
+    yesterday = date.today() - timedelta(days=1)
+    day_before = yesterday - timedelta(days=1)
     bundle = tmp_path / "data" / "bundle"
     bundle.mkdir(parents=True)
     pd.DataFrame({
-        "date": pd.to_datetime(["2026-10-18", "2026-10-19"]),
+        "date": pd.to_datetime([day_before.isoformat(), yesterday.isoformat()]),
         "temp_c": [24.0, 25.0], "is_sensor_reading": [False, False],
         "gap_filled": [False, False],
     }).to_csv(bundle / "daily_merged.csv", index=False)
