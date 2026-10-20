@@ -250,6 +250,12 @@ export default function Metrics() {
                       </td>
                       <td className="mono">
                         {m.n_observations ?? "Not available"}
+                        {typeof m.n_observations === "number" &&
+                          m.n_observations < 7 && (
+                            <span className="cell-note">
+                              too few days to trust
+                            </span>
+                          )}
                       </td>
                     </tr>
                   );

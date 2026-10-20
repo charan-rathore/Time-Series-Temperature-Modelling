@@ -116,6 +116,24 @@ class ModelManager:
         self.is_loaded = len(loaded) > 0
         print(f"[ModelManager] Loaded models: {loaded if loaded else 'none'}")
 
+    def _ensemble_bases_loaded(self) -> bool:
+        """The ensemble is only a real choice when every base model its
+        stacker was trained on actually loaded in this runtime.
+
+        Vercel omits lightgbm (no native libgomp), so lgbm never loads
+        there; without this guard the ensemble would be selected and
+        forecast() would quietly feed it the historical mean for the
+        missing input while still labelling the output "ensemble".
+        """
+        if not (self.ensemble and self.ensemble.is_fitted):
+            return False
+        loaded = {
+            "sarima": bool(self.sarima and self.sarima.is_fitted),
+            "lgbm": bool(self.lgbm_models),
+            "tft": bool(self.tft and self.tft.is_fitted),
+        }
+        return all(loaded.get(name, False) for name in self.ensemble.base_model_names)
+
     def get_best_model_name(self) -> str:
         """Return the best available model by held-out test RMSE.
 
@@ -125,7 +143,7 @@ class ModelManager:
         the pick.
         """
         available = []
-        if self.ensemble and self.ensemble.is_fitted:
+        if self._ensemble_bases_loaded():
             available.append("ensemble")
         if self.tft and self.tft.is_fitted:
             available.append("tft")

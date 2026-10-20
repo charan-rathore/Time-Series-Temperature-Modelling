@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import Leaderboard from "./pages/Leaderboard";
+import Metrics from "./pages/Metrics";
 import { api } from "./api";
 
 jest.mock("./api", () => ({
@@ -14,6 +15,7 @@ jest.mock("./api", () => ({
     getLeaderboard: jest.fn(),
     getLeaderboardComparison: jest.fn(),
     getLeaderboardStatus: jest.fn(),
+    getMetrics: jest.fn(),
   },
 }));
 
@@ -138,4 +140,21 @@ it("leaderboard shows the collect command instead of claiming automation that do
   expect(await screen.findByText("python -m src.data.baseline_collector --collect")).toBeInTheDocument();
   expect(screen.getByText("python scripts/record_reference_actual.py")).toBeInTheDocument();
   expect(screen.queryByText(/no action needed/)).toBeNull();
+});
+
+it("flags a one-day metric as too few days to trust instead of headlining it", async () => {
+  api.getMetrics.mockResolvedValue({
+    location: "Bangalore",
+    models: {
+      sarima: { day1: { rmse: 0.136, mae: 0.136, n_observations: 1 } },
+      lgbm: { day1: { rmse: 0.76, mae: 0.637, n_observations: 30 } },
+    },
+  });
+  render(<Metrics />);
+  expect(await screen.findByText(/too few days to trust/)).toBeInTheDocument();
+  // the badge exists exactly once and belongs to the evidenced model
+  const badges = screen.getAllByText("Lowest day-1 RMSE");
+  expect(badges).toHaveLength(1);
+  expect(badges[0].closest("section").textContent).toMatch(/lgbm/);
+  expect(badges[0].closest("section").textContent).not.toMatch(/sarima/);
 });
