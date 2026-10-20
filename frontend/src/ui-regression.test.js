@@ -62,7 +62,7 @@ beforeEach(() => {
 afterEach(cleanup);
 it("keeps labels and the current destination accessible through navigation", async () => {
   render(<App />);
-  await screen.findByRole("heading", { name: "Station overview" });
+  await screen.findByRole("heading", { name: /Cooling is about a tenth/ });
   const nav = screen.getByRole("navigation", { name: "Main navigation" });
   expect(within(nav).getAllByRole("button")).toHaveLength(6);
   fireEvent.click(within(nav).getByRole("button", { name: "Forecast" }));
@@ -76,12 +76,12 @@ it("keeps labels and the current destination accessible through navigation", asy
 });
 it("keeps a zero forecast and zero training error visible, not missing", async () => {
   render(<Dashboard onNavigate={jest.fn()} />);
-  await screen.findByRole("heading", { name: "Station overview" });
+  await screen.findByRole("heading", { name: /Cooling is about a tenth/ });
   const hero = screen.getByRole("region", {
     name: "Tomorrow's temperature forecast",
   });
   expect(within(hero).getByText("0.0")).toBeInTheDocument();
-  expect(screen.getByText("Training RMSE · day 1")).toBeInTheDocument();
+  expect(screen.getByText("Typical miss, next day")).toBeInTheDocument();
   expect(
     within(screen.getByRole("region", { name: "Station record" })).getByText(
       "0.0",
@@ -100,7 +100,7 @@ it("renders a retryable station error", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("offline");
   api.getStatus.mockResolvedValue({ data_rows: 0 });
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-  await screen.findByRole("heading", { name: "Station overview" });
+  await screen.findByRole("heading", { name: /Cooling is about a tenth/ });
 });
 it("preserves forecast day selection and signals loading failures", async () => {
   render(<Forecast />);

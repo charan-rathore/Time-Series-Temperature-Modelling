@@ -79,19 +79,27 @@ export default function Dashboard({ onNavigate }) {
     <>
       <header className="page-header">
         <div>
-          <p className="eyebrow">The observation room</p>
-          <h2>Station overview</h2>
+          <p className="eyebrow">Why this exists</p>
+          <h2 className="why-headline">
+            Cooling is about a tenth of India&rsquo;s electricity. On a hot
+            night it can be <em>a third</em>.
+          </h2>
           <p className="page-intro">
-            ThermoSense pairs a small temperature sensor at home with the
-            weather forecast and learns the difference between the two, so the
-            number you see is for <em>your street</em>, not the nearest
-            airport. For anyone whose plans depend on the weather right
-            outside their window.
+            Whether you run the AC or open a window depends on the temperature
+            at <em>your street</em> around 9 PM, not on a grid estimate for
+            the nearest airport. ThermoSense measures that one number and
+            keeps score of who predicted it.
           </p>
-          <p className="page-location">
-            {forecast?.location ||
-              history?.location ||
-              "Local temperature station"}
+          <p className="why-source">
+            Source:{" "}
+            <a
+              href="https://www.iea.org/commentaries/india-s-electricity-demand-grows-at-night-managing-rising-cooling-demand"
+              target="_blank"
+              rel="noreferrer"
+            >
+              IEA, India&rsquo;s electricity demand grows at night (June 2026)
+            </a>
+            . {forecast?.location || history?.location || "Bangalore"} station.
           </p>
         </div>
         <button className="btn btn-secondary" onClick={load}>
@@ -106,7 +114,7 @@ export default function Dashboard({ onNavigate }) {
         >
           <div className="hero-top">
             <span className="eyebrow">
-              Tomorrow · {shortDate(tomorrow?.date)}
+              Tomorrow evening · {shortDate(tomorrow?.date)}
             </span>
             <span className={`source-tag ${untrained ? "source-tag-provisional" : "source-tag-trained"}`}>{modelLabel}</span>
           </div>
@@ -114,11 +122,11 @@ export default function Dashboard({ onNavigate }) {
             {temperature(tomorrow?.predicted_temp_c)}
             <span>°C</span>
           </div>
-          <p className="hero-caption">Expected <em>tomorrow evening</em>, around 9 PM in {forecast?.location || "Bangalore"}</p>
+          <p className="hero-caption">What to expect outside at <em>9 PM</em>. Plan the window or the AC around this.</p>
           <div className="hero-bottom">
             <span>
               {tomorrow
-                ? `${temperature(tomorrow.lower_bound_c)} to ${temperature(tomorrow.upper_bound_c)} °C reported range`
+                ? `${temperature(tomorrow.lower_bound_c)} to ${temperature(tomorrow.upper_bound_c)} °C likely range`
                 : "Forecast unavailable"}
             </span>
             <button
@@ -139,10 +147,10 @@ export default function Dashboard({ onNavigate }) {
           )}
         </section>
         <section className="station-ledger" aria-label="Station record">
-          <span className="eyebrow">Station record</span>
+          <span className="eyebrow">What the station knows</span>
           <dl>
             <div>
-              <dt>Daily observations</dt>
+              <dt>Days recorded</dt>
               {status?.data_rows ? (
                 <dd>{status.data_rows.toLocaleString()}</dd>
               ) : (
@@ -150,7 +158,7 @@ export default function Dashboard({ onNavigate }) {
               )}
             </div>
             <div>
-              <dt>Model artifacts</dt>
+              <dt>Forecasting models</dt>
               {status?.models_available?.length ? (
                 <dd>{status.models_available.length}</dd>
               ) : (
@@ -158,7 +166,7 @@ export default function Dashboard({ onNavigate }) {
               )}
             </div>
             <div>
-              <dt>Training RMSE · day 1</dt>
+              <dt>Typical miss, next day</dt>
               <dd>
                 {temperature(rmse)} <small>°C</small>
               </dd>
@@ -170,7 +178,7 @@ export default function Dashboard({ onNavigate }) {
               : "No readings stored yet. The daily pull fills this in; a backfill from Pipeline seeds it."}
           </p>
           <p className="ledger-note">
-            Training scores are not a guarantee of future accuracy.
+            Measured on past days the model had not seen. A guide, not a promise.
           </p>
         </section>
       </div>
@@ -178,7 +186,7 @@ export default function Dashboard({ onNavigate }) {
         <div className="card-header">
           <div>
             <span className="eyebrow">Measured & estimated</span>
-            <h3>Temperature record</h3>
+            <h3>Measured vs. the grid estimate</h3>
           </div>
           <button className="text-button" onClick={() => onNavigate("history")}>
             Explore history <ArrowRight size={15} />
