@@ -109,6 +109,7 @@ def readiness():
     location = config.get("location") if isinstance(config, dict) else None
     name = location.get("name") if isinstance(location, dict) else None
     data_ready = False
+    data_error = None
     try:
         import numpy as np
         import pandas as pd
@@ -135,16 +136,20 @@ def readiness():
                     decoder = getattr(dataset, "max_prediction_length", tft.config.get("max_prediction_length", 3))
                     required_rows = max(required_rows, int(encoder) + max(3, int(decoder)))
                 data_ready = len(features) >= required_rows and np.isfinite(numeric.to_numpy()).all()
-    except Exception:
-        # Match inference preparation without leaking file paths or data in the probe.
-        pass
+    except Exception as exc:
+        # Match inference preparation without leaking file paths or data in
+        # the probe; the exception class name alone is safe and diagnostic.
+        data_error = type(exc).__name__
     checks = {
         "config": isinstance(name, str) and bool(name.strip()),
         "models": bool(manager and manager.is_loaded),
         "data": bool(data_ready),
     }
     ready = all(checks.values())
-    return JSONResponse({"ready": ready, "checks": checks}, status_code=200 if ready else 503)
+    body = {"ready": ready, "checks": checks}
+    if data_error:
+        body["data_error"] = data_error
+    return JSONResponse(body, status_code=200 if ready else 503)
 
 
 @app.get("/health", tags=["Health"], include_in_schema=False)
