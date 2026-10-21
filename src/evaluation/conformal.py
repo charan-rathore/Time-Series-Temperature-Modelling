@@ -16,9 +16,11 @@ import numpy as np
 def conformal_halfwidth(residuals: Sequence[float], alpha: float = 0.1) -> float:
     """Half-width q such that |error| <= q for about (1 - alpha) of new cases.
 
-    Uses the split-conformal rank ceil((n + 1)(1 - alpha)); if that rank
-    exceeds n the data cannot support the requested coverage and the largest
-    absolute residual is returned (conservative, never optimistic).
+    Uses the split-conformal rank ceil((n + 1)(1 - alpha)). If that rank
+    exceeds n the data cannot support the requested coverage (the largest
+    residual would give only n/(n+1) marginal coverage), so an infinite
+    half-width is returned: the honest "no finite interval can promise this",
+    never a number that masquerades as the requested coverage.
     """
     r = np.sort(np.abs(np.asarray(residuals, dtype=float)))
     n = len(r)
@@ -27,7 +29,9 @@ def conformal_halfwidth(residuals: Sequence[float], alpha: float = 0.1) -> float
     if not 0 < alpha < 1:
         raise ValueError("alpha must be in (0, 1)")
     rank = int(np.ceil((n + 1) * (1 - alpha)))
-    return float(r[min(rank, n) - 1])
+    if rank > n:
+        return float("inf")
+    return float(r[rank - 1])
 
 
 def interval(point: float, halfwidth: float) -> Dict[str, float]:
