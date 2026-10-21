@@ -101,6 +101,13 @@ export default function Metrics() {
         skill scores may be withheld. Use Leaderboard for stored
         forecast-to-observation comparisons.
       </div>
+      <div className="info-box" style={{ marginBottom: 24 }}>
+        Honest yardstick: in a stricter rolling backtest the best model is
+        only level with guessing that tomorrow equals today - day-1 error
+        1.14 °C vs 1.13 °C on average (MAE) and 1.50 °C vs 1.54 °C on
+        squared error (RMSE), no real edge yet. Treat the figures below as
+        recorded results, not proof of beating a weather app.
+      </div>
       <div className="card-grid">
         {models.map(([name, h]) => (
           <section className="card" key={name}>
