@@ -14,12 +14,15 @@ ARTIFACTS = {"lgbm": ["lgbm_h1.pkl", "lgbm_h2.pkl", "lgbm_h3.pkl"], "sarima": ["
 
 
 def main() -> int:
-    bt = json.loads((ROOT / "models" / "backtest.json").read_text())["models"]
-    data_csv = ROOT / "data" / "bundle" / "daily_merged.csv"
-    import pandas as pd
-    dates = pd.read_csv(data_csv, usecols=["date"])["date"]
-    data_range = f"{dates.min()} to {dates.max()}"
-    data_hash = reg.file_sha256(data_csv)[:16]
+    bt_full = json.loads((ROOT / "models" / "backtest.json").read_text())
+    bt = bt_full["models"]
+    # Use the dataset the backtest actually evaluated, never an independently
+    # hashed file that may have drifted from it.
+    ds = bt_full.get("dataset")
+    if not ds:
+        raise SystemExit("models/backtest.json has no dataset provenance; "
+                         "re-run scripts/run_backtest.py first")
+    data_hash, data_range = ds["sha256"], ds["range"]
     registry = reg.load()
     for model, files in ARTIFACTS.items():
         if model not in bt:
