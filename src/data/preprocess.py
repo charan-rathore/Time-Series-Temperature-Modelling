@@ -70,6 +70,19 @@ def load_legacy_csv(csv_path: Optional[str] = None) -> pd.DataFrame:
     return df
 
 
+def processed_source_path(path: Optional[str] = None) -> Path:
+    """The file load_processed() reads: the parquet store when it exists,
+    else the committed bundle CSV fallback. Used to record which dataset an
+    evaluation actually ran on."""
+    cfg = _load_config()
+    if path is None:
+        path = str(_PROJECT_ROOT / cfg["data"]["processed_dir"] / PROCESSED_FILENAME)
+    p = Path(path)
+    if p.exists():
+        return p
+    return _PROJECT_ROOT / "data" / "bundle" / "daily_merged.csv"
+
+
 def load_processed(path: Optional[str] = None) -> pd.DataFrame:
     """Load the merged processed DataFrame.
 
