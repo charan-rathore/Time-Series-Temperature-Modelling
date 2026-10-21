@@ -1,0 +1,24 @@
+{
+  "champions": {
+    "lgbm": "lgbm-2a9b446608e8"
+  },
+  "versions": [
+    {
+      "artifacts": {
+        "lgbm_h1.pkl": "ece0206191b2b540",
+        "lgbm_h2.pkl": "9b9abcadd39537e8",
+        "lgbm_h3.pkl": "98d71c4e7f57e5b5"
+      },
+      "backtest_day1": {
+        "n_observations": 174,
+        "rmse": 1.5202365158237239
+      },
+      "created_at": "2026-10-20T15:35:25.604047+00:00",
+      "data_hash": "a847c0c1c40af158",
+      "data_range": "2024-06-01 to 2026-10-19",
+      "git_sha": "8976eb4",
+      "model": "lgbm",
+      "version": "lgbm-2a9b446608e8"
+    }
+  ]
+}
