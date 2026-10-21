@@ -200,3 +200,24 @@ def test_load_processed_survives_unreadable_parquet(tmp_path, monkeypatch):
     monkeypatch.setattr(preprocess, "_PROJECT_ROOT", tmp_path)
     df = preprocess.load_processed(str(bad))
     assert list(df["temp_c"]) == [24.0, 25.0]
+
+
+def test_processed_source_path_tracks_the_loader_fallback(tmp_path, monkeypatch):
+    """When the parquet exists but is unreadable, load_processed() falls back
+    to the bundle CSV; the provenance path must be that same CSV, not the
+    parquet that would fail again when hashed."""
+    import pandas as pd
+    from src.data import preprocess
+    from src.models import registry as reg
+
+    (tmp_path / "data" / "bundle").mkdir(parents=True)
+    (tmp_path / "data" / "processed").mkdir(parents=True)
+    pd.DataFrame({"date": pd.to_datetime(["2026-10-18", "2026-10-19"]),
+                  "temp_c": [24.0, 25.0]}).to_csv(
+        tmp_path / "data" / "bundle" / "daily_merged.csv", index=False)
+    bad = tmp_path / "data" / "processed" / "daily_merged.parquet"
+    bad.write_bytes(b"not a parquet file")
+    monkeypatch.setattr(preprocess, "_PROJECT_ROOT", tmp_path)
+    selected = preprocess.processed_source_path(str(bad))
+    assert selected == tmp_path / "data" / "bundle" / "daily_merged.csv"
+    assert reg.dataset_provenance(selected)["path"].endswith("daily_merged.csv")
