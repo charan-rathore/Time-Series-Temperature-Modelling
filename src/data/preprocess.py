@@ -71,16 +71,26 @@ def load_legacy_csv(csv_path: Optional[str] = None) -> pd.DataFrame:
 
 
 def processed_source_path(path: Optional[str] = None) -> Path:
-    """The file load_processed() reads: the parquet store when it exists,
-    else the committed bundle CSV fallback. Used to record which dataset an
-    evaluation actually ran on."""
+    """The file load_processed() reads: the parquet store when it exists and
+    is readable, else the committed bundle CSV fallback. Mirrors the loader's
+    fallback so provenance records the dataset actually evaluated."""
     cfg = _load_config()
     if path is None:
         path = str(_PROJECT_ROOT / cfg["data"]["processed_dir"] / PROCESSED_FILENAME)
     p = Path(path)
+    bundle_csv = _PROJECT_ROOT / "data" / "bundle" / "daily_merged.csv"
     if p.exists():
-        return p
-    return _PROJECT_ROOT / "data" / "bundle" / "daily_merged.csv"
+        try:
+            pd.read_parquet(p, columns=["date"])
+            return p
+        except Exception:
+            # Mirrors load_processed(): an unreadable parquet means the CSV
+            # was evaluated, so provenance must point at the CSV instead of
+            # failing again on the same unreadable parquet.
+            if bundle_csv.exists():
+                return bundle_csv
+            return p
+    return bundle_csv
 
 
 def load_processed(path: Optional[str] = None) -> pd.DataFrame:
