@@ -54,6 +54,21 @@ def test_models_are_tracked_independently():
     assert set(r["champions"]) == {"lgbm", "sarima"}
 
 
+def test_dataset_provenance_hashes_and_dates_the_file_given(tmp_path):
+    import pandas as pd
+    csv = tmp_path / "data.csv"
+    csv.write_text("date,temp_c\n2026-01-03,20.0\n2026-01-01,19.5\n")
+    ds = reg.dataset_provenance(csv)
+    assert ds["sha256"] == reg.file_sha256(csv)[:16]
+    assert ds["range"] == "2026-01-01 to 2026-01-03"
+    assert ds["rows"] == 2
+    pq = tmp_path / "data.parquet"
+    pd.DataFrame({"date": pd.to_datetime(["2026-02-01", "2026-02-02"]), "temp_c": [1.0, 2.0]}).to_parquet(pq)
+    dsq = reg.dataset_provenance(pq)
+    assert dsq["sha256"] == reg.file_sha256(pq)[:16]
+    assert dsq["range"] == "2026-02-01 to 2026-02-02"
+
+
 def test_save_load_round_trip_and_hashing(tmp_path):
     p = tmp_path / "registry.json"
     assert reg.load(p) == {"versions": [], "champions": {}}
