@@ -206,6 +206,12 @@
       }
     }
   },
+  "dataset": {
+    "path": "data/processed/daily_merged.parquet",
+    "sha256": "163dd7e3b941ec4f",
+    "range": "2024-06-01 to 2026-10-19",
+    "rows": 871
+  },
   "conformal_90": {
     "persistence": {
       "day1": {
