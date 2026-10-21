@@ -47,6 +47,30 @@ def test_psi_is_near_zero_for_same_distribution_and_large_for_a_shift():
     assert population_stability_index(a, rng.normal(30, 2, 2000)) > 0.25
 
 
+def test_psi_on_a_frozen_reference_still_sees_a_shift():
+    # constant reference window: quantile bins collapse to one edge, but a
+    # window that moved must register as drift, not "0.0 = stable"
+    assert population_stability_index([20.0] * 50, [35.0] * 50) > 0.25
+    # and a matching window still reads stable
+    assert population_stability_index([20.0] * 50, [20.0] * 50) < 0.05
+
+
+def test_summarize_reports_pipeline_filled_gaps():
+    dates = pd.date_range("2026-01-01", periods=4, freq="D")
+    df = pd.DataFrame({
+        "date": dates,
+        "temp_c": [20.0, 21.0, 22.0, 23.0],
+        "gap_filled": [False, True, True, False],
+    })
+    out = summarize(df, today=pd.Timestamp("2026-01-05"))
+    assert out["gaps"] == []                      # date sequence is complete
+    assert out["gap_filled_count"] == 2
+    assert out["gap_filled_dates"] == ["2026-01-02", "2026-01-03"]
+    # frames without the marker column simply report zero
+    plain = df.drop(columns=["gap_filled"])
+    assert summarize(plain, today=pd.Timestamp("2026-01-05"))["gap_filled_count"] == 0
+
+
 def test_error_drift_flags_only_materially_worse_error():
     rng = np.random.default_rng(4)
     assert error_drift(rng.normal(0, 1.5, 30), 1.5)["status"] == "ok"
