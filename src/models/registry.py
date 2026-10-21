@@ -30,6 +30,28 @@ def file_sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def dataset_provenance(path) -> dict:
+    """Hash, date range and row count of the dataset file that was actually
+    evaluated (parquet or CSV), so registrations point at the real input."""
+    import pandas as pd
+
+    p = Path(path)
+    if p.suffix == ".parquet":
+        df = pd.read_parquet(p, columns=["date"])
+    else:
+        df = pd.read_csv(p, usecols=["date"])
+    dates = pd.to_datetime(df["date"]).dt.date
+    try:
+        shown = str(p.resolve().relative_to(Path(__file__).resolve().parents[2]))
+    except ValueError:
+        shown = str(p)
+    return {
+        "path": shown,
+        "sha256": file_sha256(p)[:16],
+        "range": f"{dates.min()} to {dates.max()}",
+        "rows": int(len(df)),
+    }
+
 def artifact_hashes(models_dir: Path, names: Iterable[str]) -> Dict[str, str]:
     return {n: file_sha256(Path(models_dir) / n)[:16] for n in sorted(names)}
 

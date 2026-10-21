@@ -69,8 +69,19 @@ def population_stability_index(reference: Sequence[float], current: Sequence[flo
     edges = np.quantile(ref, np.linspace(0, 1, bins + 1))
     edges = np.unique(edges)
     if len(edges) < 3:
-        return 0.0
-    edges[0], edges[-1] = -np.inf, np.inf
+        # Degenerate reference: the quantile bins collapsed. Build bins that
+        # still separate "same as reference" from "moved", instead of
+        # reporting stability without ever looking at the current window.
+        lo, hi = float(ref.min()), float(ref.max())
+        if lo == hi:
+            # constant reference: a thin bin around the value; anything else
+            # lands outside it and registers as drift
+            tol = max(abs(lo), 1.0) * 1e-9
+            edges = np.array([-np.inf, lo - tol, lo + tol, np.inf])
+        else:
+            edges = np.array([-np.inf, float(np.median(ref)), np.inf])
+    else:
+        edges[0], edges[-1] = -np.inf, np.inf
     eps = 1e-4
     r = np.histogram(ref, edges)[0] / len(ref) + eps
     c = np.histogram(cur, edges)[0] / len(cur) + eps
@@ -101,10 +112,19 @@ def summarize(df: pd.DataFrame, today: Optional[pd.Timestamp] = None) -> Dict:
     df = df.sort_values("date").reset_index(drop=True)
     temps = df["temp_c"].to_numpy(dtype=float)
     half = len(temps) // 2
+    # The pipeline fills missing days and marks them gap_filled=True; those
+    # are real observation gaps even though the date sequence is complete.
+    if "gap_filled" in df.columns:
+        filled = df.loc[df["gap_filled"].astype(bool), "date"]
+        filled_dates = [d.date().isoformat() for d in pd.to_datetime(filled)]
+    else:
+        filled_dates = []
     return {
         "rows": int(len(df)),
         "freshness": freshness(df["date"].max(), today),
         "gaps": find_gaps(df["date"]),
+        "gap_filled_count": len(filled_dates),
+        "gap_filled_dates": filled_dates[:10],
         "outlier_count": len(find_outliers(temps)),
         "stuck_runs": find_stuck_runs(temps),
         "temp_psi_first_vs_second_half": population_stability_index(temps[:half], temps[half:]),

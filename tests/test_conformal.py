@@ -13,8 +13,14 @@ def test_halfwidth_uses_the_finite_sample_rank():
     assert conformal_halfwidth(r, 0.5) == 5
 
 
-def test_too_few_residuals_is_conservative_not_optimistic():
-    assert conformal_halfwidth([1.0, 2.0], 0.05) == 2.0   # rank 3 > n -> max
+def test_too_few_residuals_cannot_promise_the_requested_coverage():
+    # rank = ceil(3 * 0.95) = 3 > n = 2: the max residual would give only
+    # 2/3 marginal coverage, so the honest answer is an infinite half-width
+    assert conformal_halfwidth([1.0, 2.0], 0.05) == float("inf")
+    # an infinite interval covers everything, truthfully
+    assert empirical_coverage([100.0, -40.0], float("inf")) == 1.0
+    # alpha reachable with the same n still returns a finite order statistic
+    assert conformal_halfwidth([1.0, 2.0], 0.5) == 2.0
 
 
 def test_signs_do_not_matter():

@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 import yaml
 
-from src.data.preprocess import load_processed
+from src.data.preprocess import load_processed, processed_source_path
 from src.evaluation.backtest import (BASELINES, backtest_errors, lgbm_forecaster,
                                      rolling_origin_folds, run_backtest)
 from src.evaluation.conformal import conformal_halfwidth, walk_forward_coverage
@@ -27,6 +27,11 @@ def main() -> int:
     except Exception as exc:
         print(f"[backtest] lgbm skipped: {exc}")
     result = run_backtest(df, forecasters)
+    # Provenance: record the dataset actually evaluated, so registration can
+    # attach these metrics to the same bytes instead of re-hashing the bundle.
+    from src.models import registry as reg
+
+    result["dataset"] = reg.dataset_provenance(processed_source_path())
     # Conformal 90% intervals: half-width from pooled backtest residuals,
     # plus walk-forward coverage measured on folds the calibration never saw.
     folds = rolling_origin_folds(len(df), result["n_folds"], result["fold_len"], result["min_train"])
