@@ -160,9 +160,16 @@ def store_actual(
     try:
         conn.execute(
             """
-            INSERT OR REPLACE INTO daily_actuals 
+            INSERT INTO daily_actuals
             (date, sensor_temp_c, sensor_humidity_pct, api_temp_c, recorded_at, source)
             VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(date) DO UPDATE SET
+                sensor_temp_c = excluded.sensor_temp_c,
+                sensor_humidity_pct = excluded.sensor_humidity_pct,
+                api_temp_c = COALESCE(excluded.api_temp_c, daily_actuals.api_temp_c),
+                recorded_at = excluded.recorded_at,
+                source = excluded.source,
+                created_at = CURRENT_TIMESTAMP
             """,
             (
                 date_.isoformat(),
