@@ -55,3 +55,16 @@ def test_new_date_receipt_follows_persisted_row(store):
     row = df.loc[df["date"] == pd.Timestamp("2024-07-12")].iloc[0]
     assert row["temp_c"] == 29.0
     assert bool(row["is_sensor_reading"])
+
+
+@pytest.mark.parametrize("raw", ["NaN", "Infinity", "-Infinity"])
+def test_non_finite_temperature_is_rejected_and_store_unchanged(store, raw):
+    before = store.read_bytes()
+    response = TestClient(app, raise_server_exceptions=False).post(
+        "/forecast/feedback",
+        content='{"date": "2024-07-11", "actual_temp_c": %s}' % raw,
+        headers={"content-type": "application/json"},
+    )
+    assert response.status_code == 400
+    assert "accepted" not in response.text
+    assert store.read_bytes() == before

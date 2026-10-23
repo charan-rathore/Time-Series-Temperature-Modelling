@@ -9,6 +9,7 @@ POST /feedback
   Appends to the local data store and updates the api_bias rolling feature.
 """
 
+import math
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -119,6 +120,9 @@ def post_feedback(payload: FeedbackRequest, request: Request):
         obs_date = date.fromisoformat(payload.date)
     except ValueError:
         raise HTTPException(status_code=400, detail="date must be in YYYY-MM-DD format")
+
+    if not math.isfinite(payload.actual_temp_c):
+        raise HTTPException(status_code=400, detail="actual_temp_c must be a finite number")
 
     if obs_date > date.today():
         raise HTTPException(status_code=400, detail="Cannot submit feedback for a future date")
