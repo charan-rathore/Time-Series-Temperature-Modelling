@@ -10,7 +10,7 @@ Endpoints:
 from datetime import date, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from src.data.baseline_collector import (
     get_leaderboard,
@@ -63,8 +63,11 @@ def comparison(
     
     Returns each date's actual temperature alongside predictions from all sources.
     """
-    start = date.fromisoformat(start_date) if start_date else date.today() - timedelta(days=30)
-    end = date.fromisoformat(end_date) if end_date else date.today()
+    try:
+        start = date.fromisoformat(start_date) if start_date else date.today() - timedelta(days=30)
+        end = date.fromisoformat(end_date) if end_date else date.today()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="start_date and end_date must be YYYY-MM-DD")
     
     data = get_forecast_comparison(start_date=start, end_date=end)
     
