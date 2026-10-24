@@ -205,3 +205,34 @@ class TestOpenMeteoFetch:
         if day1:
             assert day1["source"] == "open_meteo"
             assert day1["predicted_temp_c"] == 26.0
+
+
+class TestStoreActualApiTemp:
+    """A later write for the same date must not erase the stored API temperature."""
+
+    def _row(self, db):
+        return sqlite3.connect(str(db)).execute(
+            "SELECT sensor_temp_c, sensor_humidity_pct, api_temp_c, source FROM daily_actuals"
+        ).fetchall()
+
+    def test_rewrite_without_api_temp_keeps_existing(self, temp_db):
+        store_actual(temp_db, date(2026, 10, 20), 25.0, None, api_temp_c=24.5, source="open_meteo_reference")
+        store_actual(temp_db, date(2026, 10, 20), 27.5, 60.0, source="dht22_sensor")
+        assert self._row(temp_db) == [(27.5, 60.0, 24.5, "dht22_sensor")]
+
+    def test_explicit_new_api_temp_overrides(self, temp_db):
+        store_actual(temp_db, date(2026, 10, 20), 25.0, None, api_temp_c=24.5)
+        store_actual(temp_db, date(2026, 10, 20), 27.5, 60.0, api_temp_c=22.0)
+        assert self._row(temp_db)[0][2] == 22.0
+
+    def test_no_prior_row_and_no_api_temp_stays_none(self, temp_db):
+        store_actual(temp_db, date(2026, 10, 20), 27.5, 60.0)
+        assert self._row(temp_db) == [(27.5, 60.0, None, "sensor")]
+
+    def test_created_at_is_reset_on_rewrite_as_before(self, temp_db):
+        store_actual(temp_db, date(2026, 10, 20), 25.0)
+        conn = sqlite3.connect(str(temp_db))
+        conn.execute("UPDATE daily_actuals SET created_at='2000-01-01 00:00:00'"); conn.commit(); conn.close()
+        store_actual(temp_db, date(2026, 10, 20), 26.0)
+        created = sqlite3.connect(str(temp_db)).execute("SELECT created_at FROM daily_actuals").fetchone()[0]
+        assert created > "2000-01-01 00:00:00"
