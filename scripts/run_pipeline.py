@@ -99,6 +99,29 @@ def cmd_backfill(args: argparse.Namespace) -> None:
           "print(build_feature_matrix(df).shape)\"")
 
 
+def _last_complete_date(existing):
+    """Latest date whose row has the Open-Meteo columns, not just a feedback value.
+
+    /forecast/feedback appends sparse rows (date and temp_c only). Treating those
+    as the last fetched day made the daily job skip the days before them.
+    """
+    complete = existing["temp_c_api"].notna() if "temp_c_api" in existing.columns else existing["date"].notna()
+    return existing.loc[complete, "date"].max().date()
+
+
+def _merge_daily(existing, new_rows):
+    """Add new_rows to existing; fill empty cells of rows both have, keep stored values."""
+    import pandas as pd
+    ex = existing.set_index("date")
+    nr = new_rows.set_index("date")
+    overlap = nr.index.intersection(ex.index)
+    if len(overlap):
+        ex.update(nr.loc[overlap], overwrite=False)
+    fresh = nr.loc[~nr.index.isin(ex.index)]
+    merged = pd.concat([ex.reset_index(), fresh.reset_index()], ignore_index=True)
+    return merged.sort_values("date").reset_index(drop=True)
+
+
 def cmd_daily(args: argparse.Namespace) -> None:
     """
     Daily incremental update pipeline.
@@ -118,7 +141,7 @@ def cmd_daily(args: argparse.Namespace) -> None:
         print("\nERROR: No processed data found. Run backfill first:")
         print("  python scripts/run_pipeline.py --mode backfill")
         sys.exit(1)
-    last_date = existing["date"].max().date()
+    last_date = _last_complete_date(existing)
     today = date.today()
     yesterday = today - timedelta(days=1)
 
@@ -136,8 +159,7 @@ def cmd_daily(args: argparse.Namespace) -> None:
         )
 
         import pandas as pd
-        updated = pd.concat([existing, new_rows], ignore_index=True)
-        updated = updated.drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
+        updated = _merge_daily(existing, new_rows)
         save_processed(updated)
         print(f"\nAppended {len(new_rows)} new row(s). Total: {len(updated)} rows.")
 
