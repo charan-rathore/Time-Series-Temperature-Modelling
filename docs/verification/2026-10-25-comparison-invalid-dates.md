@@ -16,6 +16,7 @@ Python 3.12, locked environment with pandas 3.1.0:
 - Pristine baseline: 333 passed, 1 failed.
 - Baseline source plus the initial two new tests: 333 passed, 3 failed (two intended REDs plus existing failure).
 - Patched source plus initial two tests: 335 passed, 1 failed.
+- Final patch including all four new API tests: 337 passed, 1 failed.
 
 The unchanged failure is `test_saved_ensemble_scores_match_training_evaluation`: day-1 MAE 0.8986850520382664 versus saved 0.9296490805744587 exceeds the existing 0.02 tolerance. No tolerance, stored score, artifact, or package was changed to make it pass.
 
