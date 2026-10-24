@@ -159,6 +159,17 @@ def cmd_daily(args: argparse.Namespace) -> None:
         )
 
         import pandas as pd
+        # The archive fetch returns temp_c only; backfill keeps that value as
+        # temp_c_api (the API reference for the bias features). Do the same
+        # here, or appended rows have no temp_c_api: they are dropped from the
+        # feature matrix and the completeness check above never moves past them.
+        if "temp_c_api" not in new_rows.columns:
+            new_rows = new_rows.assign(temp_c_api=new_rows["temp_c"])
+        # Fetched rows are API-only observations: mark them as such, as
+        # backfill does, so they are not dropped for missing flags.
+        for flag in ("is_sensor_reading", "gap_filled"):
+            if flag not in new_rows.columns:
+                new_rows = new_rows.assign(**{flag: False})
         updated = _merge_daily(existing, new_rows)
         save_processed(updated)
         print(f"\nAppended {len(new_rows)} new row(s). Total: {len(updated)} rows.")
