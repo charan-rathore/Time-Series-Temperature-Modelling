@@ -142,3 +142,25 @@ def test_api_health():
     data = response.json()
     assert data["status"] == "ok"
     assert data["version"] == "2.0.0"
+
+def test_leaderboard_comparison_invalid_start_date_returns_400():
+    response = client.get("/api/leaderboard/comparison?start_date=not-a-date")
+    assert response.status_code == 400
+
+
+def test_leaderboard_comparison_invalid_end_date_returns_400():
+    response = client.get("/api/leaderboard/comparison?end_date=2026-13-40")
+    assert response.status_code == 400
+
+
+def test_leaderboard_comparison_valid_dates_return_200():
+    response = client.get("/api/leaderboard/comparison?start_date=2024-06-01&end_date=2024-07-11")
+    assert response.status_code == 200
+    assert response.json()["start_date"] == "2024-06-01"
+    assert response.json()["end_date"] == "2024-07-11"
+
+
+def test_leaderboard_comparison_default_dates_return_200():
+    response = client.get("/api/leaderboard/comparison")
+    assert response.status_code == 200
+    assert "data" in response.json()
