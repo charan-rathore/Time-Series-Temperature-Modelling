@@ -66,12 +66,12 @@ def get_history(
             mask = (df["date"].dt.date >= start_date) & (df["date"].dt.date <= end_date)
             filtered = df[mask].copy()
 
-            for _, row in filtered.iterrows():
+            for row in filtered.to_dict(orient="records"):
                 records.append(HistoricalPoint(
                     date=str(row["date"].date()),
                     actual_temp_c=_safe_float(row.get("temp_c")),
                     api_temp_c=_safe_float(row.get("temp_c_api")),
-                    api_bias=_safe_float(row.get("api_bias") if "api_bias" in row.index else None),
+                    api_bias=_safe_float(row.get("api_bias") if "api_bias" in row else None),
                     humidity_pct=_safe_float(row.get("humidity_pct")),
                     pressure_hpa=_safe_float(row.get("pressure_hpa")),
                     is_sensor_reading=bool(row.get("is_sensor_reading", False)),
