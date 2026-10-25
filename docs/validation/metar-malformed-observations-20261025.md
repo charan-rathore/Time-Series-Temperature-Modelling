@@ -1,7 +1,13 @@
 # METAR optional data must not crash the poller
 
-Based on main27cb203. No changes to held comparison-date or daily-fetch candidates.
+Based on main `27cb203`. No changes to held comparison-date or daily-fetch candidates.
 
-Actualpoll_once->SQLite regression tests: valid25Creading with singular dewpoint-243.04 previously raisesZeroDivisionError; now stores temperature with unknown humidity. Five malformed timestamps(nonfinite and outofrange) previously raise; now returnno_timebefore databasecreation. TestsinitiallyhadincorrectSQLcolumn/name, corrected before finalsource-onlyRED/GREEN. Finalbaseline6fail12pass->candidate18pass.
+Actual `poll_once` to SQLite regression tests:
 
-Fullpandas2.3.3environment340PASS. Actuallockedpandas3.1environment339PASS1FAIL: preexistingtests/test_results_freshness.py::test_saved_ensemble_scores_match_training_evaluation. No dependency or evaluation changes. Mergeholdremains; not fullgreen.
+- A valid 25 C reading with singular dewpoint -243.04 previously raised ZeroDivisionError. It now stores temperature with unknown humidity.
+- Five malformed timestamps, including nonfinite and out-of-range values, previously raised. They now return `no_time` before database creation.
+- Initial tests used an incorrect SQL column/name. Those were corrected before the final source-only RED/GREEN check: baseline 6 FAIL / 12 PASS to candidate 18 PASS.
+
+The full older pandas 2.3.3 environment had 340 PASS. The actual locked pandas 3.1 environment has 339 PASS / 1 FAIL: the preexisting `tests/test_results_freshness.py::test_saved_ensemble_scores_match_training_evaluation` check. No dependency or evaluation changes.
+
+Merge hold remains. This is not full-green or merge-ready.
