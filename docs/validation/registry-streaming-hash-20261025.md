@@ -1,0 +1,7 @@
+# Draft: bound model artifact hashing memory
+
+Actualfile_sha256loadedentiremodel/dataartifactintomemoryonlytohashit. Stream1MiBblockswhilepreservingSHA256algorithm/digest/returntypeandartifactidentity. No registryformat,policy,promotion,evaluationormodelchange.
+
+Actual20MiBfilesystemartifactwithindependentexpectedhash: baselinepeak20,976,427bytesfails3MiBbudget; candidatepasses. Emptyandnon-block-alignedfilesdigestsidentical. Focusedregistry10PASS. Lockedfull335PASS1knownsavedensemblefreshnessFAIL. MERGEBLOCKEDuntilfullgateclear. NoAPI/network/deploymentproofclaimed.
+
+7trialmedian20MiBhash16.80msbaseline->16.62mscandidate; measuredpeak20,976,058->2,102,377bytes. Localfilesystem/Node-freePythonmeasurement, notproductionmodelthroughputclaim.
