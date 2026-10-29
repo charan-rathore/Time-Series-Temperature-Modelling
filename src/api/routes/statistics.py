@@ -50,26 +50,8 @@ def _get_errors_for_source(
     horizon: int = 1,
     window_days: int = 30,
 ) -> List[float]:
-    """Get absolute errors for a source from the database."""
-    if not _DB_PATH.exists():
-        return []
-    
-    cutoff = (date.today() - timedelta(days=window_days)).isoformat()
-    
-    conn = sqlite3.connect(str(_DB_PATH))
-    cursor = conn.execute(
-        """
-        SELECT ABS(f.predicted_temp_c - a.sensor_temp_c) as error
-        FROM daily_forecasts f
-        JOIN daily_actuals a ON f.forecast_date = a.date
-        WHERE f.source = ? AND f.horizon_days = ? AND f.forecast_date >= ?
-        ORDER BY f.forecast_date
-        """,
-        (source, horizon, cutoff),
-    )
-    errors = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return errors
+    """Get absolute errors for a source from the shared signed-error reader."""
+    return [abs(error) for error in _get_signed_errors_for_source(source, horizon, window_days)]
 
 
 def _get_signed_errors_for_source(
@@ -97,6 +79,36 @@ def _get_signed_errors_for_source(
     errors = [row[0] for row in cursor.fetchall()]
     conn.close()
     return errors
+
+
+def _get_paired_signed_errors(baseline: str, horizon: int, window_days: int):
+    """One SQLite snapshot, same target date/horizon and same stored actual.
+
+    Preserve the existing SQLite actual/source policy. This fixes date alignment,
+    not provenance or prospective capture of these legacy daily records.
+    """
+    if not _DB_PATH.exists():
+        return [], []
+    cutoff = (date.today() - timedelta(days=window_days)).isoformat()
+    conn = sqlite3.connect(str(_DB_PATH))
+    try:
+        rows = conn.execute(
+            """
+            SELECT ours.predicted_temp_c - actual.sensor_temp_c,
+                   baseline.predicted_temp_c - actual.sensor_temp_c
+            FROM daily_forecasts ours
+            JOIN daily_forecasts baseline
+              ON baseline.forecast_date = ours.forecast_date
+             AND baseline.horizon_days = ours.horizon_days
+            JOIN daily_actuals actual ON actual.date = ours.forecast_date
+            WHERE ours.source = 'thermosense' AND baseline.source = ?
+              AND ours.horizon_days = ? AND ours.forecast_date >= ?
+            ORDER BY ours.forecast_date
+            """, (baseline, horizon, cutoff)
+        ).fetchall()
+    finally:
+        conn.close()
+    return [row[0] for row in rows], [row[1] for row in rows]
 
 
 def _get_available_sources() -> List[str]:
@@ -131,18 +143,18 @@ def compare_to_baseline(
     """
     init_database(_DB_PATH)
     
-    ts_errors = _get_errors_for_source("thermosense", horizon, window_days)
-    bl_errors = _get_errors_for_source(baseline, horizon, window_days)
-    
-    if len(ts_errors) == 0:
-        raise HTTPException(status_code=404, detail="No ThermoSense forecast data found")
-    if len(bl_errors) == 0:
-        raise HTTPException(status_code=404, detail=f"No {baseline} forecast data found")
-    
-    min_len = min(len(ts_errors), len(bl_errors))
-    ts_errors = ts_errors[:min_len]
-    bl_errors = bl_errors[:min_len]
-    
+    ts_signed, bl_signed = _get_paired_signed_errors(baseline, horizon, window_days)
+    if not ts_signed:
+        # Keep established 404 semantics when a source has no actual-backed rows.
+        # These reads happen only on the empty-intersection error path.
+        if not _get_signed_errors_for_source("thermosense", horizon, window_days):
+            raise HTTPException(status_code=404, detail="No ThermoSense forecast data found")
+        if not _get_signed_errors_for_source(baseline, horizon, window_days):
+            raise HTTPException(status_code=404, detail=f"No {baseline} forecast data found")
+    ts_errors = [abs(error) for error in ts_signed]
+    bl_errors = [abs(error) for error in bl_signed]
+    min_len = len(ts_signed)
+
     if min_len < 3:
         raise HTTPException(
             status_code=400,
@@ -151,8 +163,6 @@ def compare_to_baseline(
     
     comparison = _to_python_types(compare_forecasters(ts_errors, bl_errors, alternative="less"))
     
-    ts_signed = _get_signed_errors_for_source("thermosense", horizon, window_days)[:min_len]
-    bl_signed = _get_signed_errors_for_source(baseline, horizon, window_days)[:min_len]
     dm_result = _to_python_types(diebold_mariano_test(ts_signed, bl_signed, h=horizon))
     
     skill = float(compute_skill_score(ts_errors, bl_errors))
@@ -240,18 +250,13 @@ def compare_all(
     comparisons = []
     
     for baseline in sources:
-        bl_errors = _get_errors_for_source(baseline, horizon, window_days)
-        
-        if len(bl_errors) < 3:
-            continue
-        
-        min_len = min(len(ts_errors), len(bl_errors))
+        ts_signed, bl_signed = _get_paired_signed_errors(baseline, horizon, window_days)
+        min_len = len(ts_signed)
         if min_len < 3:
             continue
-        
-        ts_subset = ts_errors[:min_len]
-        bl_subset = bl_errors[:min_len]
-        
+        ts_subset = [abs(error) for error in ts_signed]
+        bl_subset = [abs(error) for error in bl_signed]
+
         result = _to_python_types(compare_forecasters(ts_subset, bl_subset, alternative="less"))
         skill = float(compute_skill_score(ts_subset, bl_subset))
         
