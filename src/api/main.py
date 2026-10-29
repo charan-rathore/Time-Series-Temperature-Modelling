@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 load_dotenv()
 
-from .routes import forecast, history, metrics, pipeline, leaderboard, sensor, statistics, locations
+from .routes import forecast, history, metrics, pipeline, leaderboard, sensor, statistics, locations, observations
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../../config/config.yaml")
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -86,6 +86,7 @@ app.include_router(history.router, prefix="/api/history", tags=["History"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["Metrics"])
 app.include_router(pipeline.router, prefix="/api/pipeline", tags=["Pipeline"])
 app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["Leaderboard"])
+app.include_router(observations.router, prefix="/api/observations", tags=["Raw history"])
 app.include_router(sensor.router, prefix="/api/sensor", tags=["Sensor"])
 app.include_router(statistics.router, prefix="/api/statistics", tags=["Statistics"])
 app.include_router(locations.router, prefix="/api/locations", tags=["Locations"])

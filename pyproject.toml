@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 # Vercel runtime deps. LightGBM is omitted here: its native libgomp is unavailable
 # on the Vercel Python image. Full local/Docker install still uses requirements.txt.
 dependencies = [
-  "pandas>=2.2.0",
+  "pandas==2.3.3",
   "numpy>=2.0.0",
   "scipy>=1.14.0",
   "statsmodels>=0.14.0",
@@ -19,6 +19,9 @@ dependencies = [
   "python-dotenv>=1.0.0",
   "pyyaml>=6.0.0",
 ]
+
+[project.optional-dependencies]
+history = ["psycopg[binary]==3.3.3"]
 
 [tool.vercel]
 entrypoint = "src.api.main:app"
