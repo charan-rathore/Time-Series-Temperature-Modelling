@@ -20,6 +20,8 @@ from __future__ import annotations
 import json
 import os
 import time
+import uuid
+import stat
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -120,7 +122,21 @@ def _save_raw(payload: dict, filename: str) -> Path:
     """Persist raw API JSON to data/raw/ for reproducibility and debugging."""
     _RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = _RAW_DIR / filename
-    out.write_text(json.dumps(payload, indent=2))
+    # Publish only complete responses. A failed write must not truncate the
+    # previous raw evidence for the same date/name.
+    serialized = json.dumps(payload, indent=2)
+    temporary = _RAW_DIR / f".{out.name}.{uuid.uuid4().hex}.tmp"
+    try:
+        # Exclusive creation keeps existing evidence untouched and honors the
+        # normal process umask for a newly created response file.
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+        os.close(descriptor)
+        if out.exists():
+            temporary.chmod(stat.S_IMODE(out.stat().st_mode))
+        temporary.write_text(serialized)
+        os.replace(temporary, out)
+    finally:
+        temporary.unlink(missing_ok=True)
     return out
 
 
