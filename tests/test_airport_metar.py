@@ -77,3 +77,17 @@ def test_latest_endpoint_exposes_airport_label(db):
         app = FastAPI(); app.include_router(router, prefix="/api/sensor")
         j = TestClient(app).get("/api/sensor/latest").json()
     assert j["source"] == "airport_vobg_metar"
+
+@pytest.mark.parametrize("timestamp", [float("nan"), float("inf"), float("-inf"), 1e100, -1e100])
+def test_invalid_timestamp_does_not_crash_poller(tmp_path, timestamp):
+    assert am.poll_once(tmp_path / "metar.db", {"temp": 25.0, "obsTime": timestamp}) == "no_time"
+
+
+def test_singular_dewpoint_does_not_discard_valid_temperature(tmp_path):
+    import sqlite3
+    when = datetime(2026, 10, 25, 21, 0, tzinfo=IST).timestamp()
+    db = tmp_path / "metar.db"
+    assert am.poll_once(db, {"temp": 25.0, "obsTime": when, "dewp": -243.04}) == "stored"
+    with sqlite3.connect(db) as connection:
+        row = connection.execute("SELECT sensor_temp_c, sensor_humidity_pct FROM daily_actuals").fetchone()
+    assert row == (25.0, None)

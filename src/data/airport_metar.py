@@ -12,6 +12,7 @@ Usage:  python -m src.data.airport_metar
 """
 
 import logging
+import math
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -62,12 +63,15 @@ def poll_once(db_path: Path = _DB_PATH, record: Optional[dict] = None) -> str:
     temp, obs = record.get("temp"), record.get("obsTime")
     if isinstance(temp, bool) or not isinstance(temp, (int, float)):
         return "no_temperature"
-    if not isinstance(obs, (int, float)) or isinstance(obs, bool):
+    if not isinstance(obs, (int, float)) or isinstance(obs, bool) or not math.isfinite(obs):
         return "no_time"
     temp = float(temp)
     if not (TEMP_MIN_C <= temp <= TEMP_MAX_C):
         return "implausible"
-    t = datetime.fromtimestamp(obs, tz=IST)
+    try:
+        t = datetime.fromtimestamp(obs, tz=IST)
+    except (OverflowError, OSError, ValueError):
+        return "no_time"
     if not _in_window(t):
         return "outside_window"
     d: date = t.date()
@@ -83,8 +87,7 @@ def poll_once(db_path: Path = _DB_PATH, record: Optional[dict] = None) -> str:
         return "real_sensor_wins"
     humidity = None
     dewp = record.get("dewp")
-    if isinstance(dewp, (int, float)) and not isinstance(dewp, bool) and dewp <= temp:
-        import math
+    if isinstance(dewp, (int, float)) and not isinstance(dewp, bool) and math.isfinite(dewp) and -243.04 < dewp <= temp:
         a, b = 17.625, 243.04
         humidity = round(100 * math.exp(a * dewp / (b + dewp)) / math.exp(a * temp / (b + temp)), 1)
     ok = store_actual(db_path, d, temp, humidity, source=SOURCE_LABEL)
