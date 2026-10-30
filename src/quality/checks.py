@@ -14,12 +14,12 @@ import pandas as pd
 def find_gaps(dates: Sequence, max_gap_days: int = 1) -> List[Dict]:
     """Missing calendar days between consecutive observations."""
     d = pd.to_datetime(pd.Series(dates)).sort_values().reset_index(drop=True)
-    gaps = []
-    for prev, cur in zip(d[:-1], d[1:]):
-        missing = (cur - prev).days - 1
-        if missing >= max_gap_days:
-            gaps.append({"after": prev.date().isoformat(), "missing_days": int(missing)})
-    return gaps
+    missing = d.diff().dt.days - 1
+    indices = np.flatnonzero((missing >= max_gap_days).to_numpy())
+    return [
+        {"after": d.iloc[i - 1].date().isoformat(), "missing_days": int(missing.iloc[i])}
+        for i in indices
+    ]
 
 
 def find_outliers(values: Sequence[float], z_limit: float = 4.0) -> List[int]:
