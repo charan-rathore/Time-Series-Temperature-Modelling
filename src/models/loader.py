@@ -14,6 +14,10 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+import hashlib
+import os
+import tempfile
+
 from src.data.fetcher import fetch_forecast_open_meteo
 from src.data.preprocess import load_processed
 from src.features.engineer import build_feature_matrix
@@ -53,6 +57,35 @@ MODELS_DIR = _PROJECT_ROOT / "models"
 PROCESSED_DIR = _PROJECT_ROOT / "data" / "processed"
 
 
+def _load_with_identity(path: Path, load_fn) -> str:
+    """Load a model and capture its artifact identity from the SAME bytes.
+
+    The source file is streamed once into a private snapshot while hashing;
+    deserialization then reads the snapshot, never the original path. A
+    file replaced on disk around the read cannot split the binding: the
+    digest always covers exactly the snapshot bytes handed to the loader -
+    old bytes, new bytes, or a torn mid-replacement mix. The digest
+    identifies precisely that snapshot; provenance is only shown if it
+    matches a registry record. A
+    naive load(path)-then-rehash(path) pair has none of these guarantees.
+    Returns the sha256[:16] of the deserialized snapshot bytes.
+    """
+    digest = hashlib.sha256()
+    fd, snapshot = tempfile.mkstemp(prefix="ts-model-", suffix=path.suffix)
+    try:
+        with os.fdopen(fd, "wb") as out, open(path, "rb") as src:
+            for block in iter(lambda: src.read(1 << 20), b""):
+                digest.update(block)
+                out.write(block)
+        load_fn(snapshot)
+        return digest.hexdigest()[:16]
+    finally:
+        try:
+            os.unlink(snapshot)
+        except OSError:
+            pass
+
+
 class ModelManager:
     """
     Manages loaded models and generates forecasts for the API layer.
@@ -66,6 +99,10 @@ class ModelManager:
         self.ensemble: Optional[EnsembleStacker] = None
         self.is_loaded = False
         self._results: Dict = {}
+        # Artifact identity captured AT LOAD through _load_with_identity:
+        # deserialization and digest read one immutable snapshot, so a
+        # replaced artifact can never re-identify the in-memory model.
+        self.artifact_hashes: Dict[str, str] = {}
 
     def load_models(self, config: dict) -> None:
         """Load all available trained models from disk."""
@@ -74,7 +111,7 @@ class ModelManager:
         sarima_path = MODELS_DIR / "sarima.pkl"
         if _SARIMA_AVAILABLE and sarima_path.exists():
             self.sarima = SARIMAXModel(config.get("models", {}).get("sarima", {}))
-            self.sarima.load(str(sarima_path))
+            self.artifact_hashes["sarima.pkl"] = _load_with_identity(sarima_path, self.sarima.load)
             loaded.append("sarima")
 
         lgbm_cfg = config.get("models", {}).get("lgbm", {})
@@ -83,7 +120,7 @@ class ModelManager:
                 lgbm_path = MODELS_DIR / f"lgbm_h{h}.pkl"
                 if lgbm_path.exists():
                     m = LGBMForecastModel(lgbm_cfg, horizon=h)
-                    m.load(str(lgbm_path))
+                    self.artifact_hashes[f"lgbm_h{h}.pkl"] = _load_with_identity(lgbm_path, m.load)
                     self.lgbm_models[h] = m
                     if "lgbm" not in loaded:
                         loaded.append("lgbm")
@@ -95,6 +132,12 @@ class ModelManager:
                 try:
                     tft_cfg = config.get("models", {}).get("tft", {})
                     self.tft = TFTModel(tft_cfg)
+                    # TFT is a checkpoint FAMILY: load() derives .ckpt and
+                    # .meta.pkl siblings from this path, and tft.pkl itself
+                    # usually does not exist. A single-file snapshot cannot
+                    # capture that contract, so TFT keeps its native load and
+                    # records NO artifact identity: provenance for a
+                    # TFT-served forecast is unknown, never guessed.
                     self.tft.load(str(MODELS_DIR / "tft.pkl"))
                     loaded.append("tft")
                 except Exception as e:
@@ -105,7 +148,7 @@ class ModelManager:
         if _ENSEMBLE_AVAILABLE and ens_path.exists():
             ens_cfg = config.get("models", {}).get("ensemble", {})
             self.ensemble = EnsembleStacker(ens_cfg)
-            self.ensemble.load(str(ens_path))
+            self.artifact_hashes["ensemble.pkl"] = _load_with_identity(ens_path, self.ensemble.load)
             loaded.append("ensemble")
 
         results_path = MODELS_DIR / "results.json"

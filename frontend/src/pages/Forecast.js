@@ -109,6 +109,14 @@ export default function Forecast() {
               {forecast.location} · Generated{" "}
               {new Date(forecast.generated_at).toLocaleString()}
             </span>
+            {forecast.trained_data_range && (
+              <span
+                data-testid="training-provenance"
+                style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}
+              >
+                Trained on {forecast.trained_data_range} grid history
+              </span>
+            )}
           </div>
 
           <div className="card-grid-3" style={{ marginTop: 16 }}>
