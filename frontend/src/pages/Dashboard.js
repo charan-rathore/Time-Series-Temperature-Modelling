@@ -150,7 +150,23 @@ export default function Dashboard({ onNavigate }) {
           <span className="eyebrow">What the station knows</span>
           <dl>
             <div>
-              <dt>Days recorded</dt>
+              <dt>Station readings</dt>
+              {status?.sensor_reading_rows != null ? (
+                status.sensor_reading_rows > 0 ? (
+                  <dd>{status.sensor_reading_rows.toLocaleString()}</dd>
+                ) : (
+                  <dd className="dd-pending">none yet</dd>
+                )
+              ) : status ? (
+                /* Backend predates the sensor split: the count is unknown,
+                   never the grid-history total wearing a station label. */
+                <dd className="dd-pending">unknown</dd>
+              ) : (
+                <dd className="dd-pending">none yet</dd>
+              )}
+            </div>
+            <div>
+              <dt>Grid history days</dt>
               {status?.data_rows ? (
                 <dd>{status.data_rows.toLocaleString()}</dd>
               ) : (
