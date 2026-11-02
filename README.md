@@ -4,7 +4,7 @@
 
 Live dashboard: [thermosense-black.vercel.app](https://thermosense-black.vercel.app)
 
-Latest Open-Meteo Bangalore demo metrics: [docs/demo-results.md](docs/demo-results.md) · [Watch the live training demo](#live-demo)
+How accurate is it, honestly? [docs/EVALUATION-AUDIT.md](docs/EVALUATION-AUDIT.md): over 365 walk-forward days a regularised linear model beats "tomorrow equals today" by about 8% RMSE; gradient boosting does not measurably beat it; scores are against the Open-Meteo archive, not a sensor. (An earlier 0.107 °C ensemble score was in-sample and is withdrawn.) · [Watch the live training demo](#live-demo)
 
 ---
 
@@ -50,7 +50,7 @@ Deeper system design, data lifecycle, models, and API surface live in:
 |----------------------|-------------|
 | One-size-fits-region forecast | Forecast corrected for **your** microclimate |
 | No ground truth at your site | Optional physical sensor closes the loop |
-| Accuracy claims without your data | Live leaderboard vs Open-Meteo / OWM / AccuWeather on **your** observations |
+| Accuracy claims without your data | Leaderboard vs commercial baselines on **your** observations (needs sensor data and archived API forecasts; see the audit) |
 | Black-box apps | Trainable models (SARIMA, LightGBM, ensemble) you control and retrain |
 | No feedback path | Dashboard feedback + continuous daily pipeline |
 
