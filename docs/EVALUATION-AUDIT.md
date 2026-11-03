@@ -64,6 +64,54 @@ accuracy or about beating commercial apps.
 - Keep `walk_forward_audit.py` in CI and publish its table instead of a
   single 14-day split.
 
+## Leakage audit of the training pipeline (3 November 2026)
+
+Checked by reading `src/features/engineer.py` and `src/models/lgbm_model.py`
+against `data/bundle/feature_matrix.csv`.
+
+- **No look-ahead in lags or rolling windows.** Lags use `shift(k)`, rolling
+  statistics `shift(1).rolling(w)`, the API-bias rolling mean `shift(1)`, and
+  the label is `temp_c.shift(-h)`. Gap filling is forward-fill only, and no
+  row in the current data is gap-filled.
+- **Issue-time assumption (train/serve skew, not test leakage).** 9 of the 34
+  LightGBM features are the issue day's own weather: humidity, dew point,
+  precipitation, pressure, cloud cover, wind, solar radiation, `temp_c_api`
+  and `gap_filled`. That is valid only for a forecast issued after the issue
+  day has ended. A forecast issued during the day would see partial or
+  forecast weather that training never saw. The issue time has to be fixed
+  and the features restricted to what is known then.
+- **`gap_filled` is used as a feature.** `EXCLUDE_COLS` names
+  `is_gap_filled`, but the column is `gap_filled`. It is constant (False)
+  today, so it changes nothing yet; the name should be corrected before
+  gap-filled rows appear.
+- **The existing baseline table compares unlike quantities.**
+  `daily_forecasts` stores Open-Meteo's daily *mean*, while the only measured
+  actual (`airport_vobg_metar`) is the reading nearest 21:00 IST. Scoring one
+  against the other would measure the diurnal cycle, not forecast skill.
+  `fetch_open_meteo_forecast` also takes horizons from `date.today()`, which
+  is UTC on a CI runner.
+
+## Forecast ledger
+
+`src/evaluation/ledger.py` and `scripts/ledger_daily.py`: an append-only,
+hash-chained JSONL file (`data/ledger/ledger.jsonl`) of forecasts and
+observations for one target, the temperature at 21:00 IST, matching what the
+airport poller measures. Enforced on every append and re-checked on every
+run: a forecast is issued before its target day starts (IST), its horizon
+matches issue and target dates, the first forecast per source, date and
+horizon wins, observations are corrected only by a superseding record, and
+an edited, reordered or deleted line breaks the chain. The daily workflow
+(`.github/workflows/forecast-ledger.yml`, 19:07 IST) records Open-Meteo's
+forecast-API value for 21:00 on D+1..D+3 and persistence, and copies new
+21:00 airport readings in. The scoreboard (`--score`) makes no claim below
+60 matched days or when the 95% block-bootstrap interval of the
+squared-error difference includes zero.
+
+ThermoSense's own models predict the daily mean, so they are not in the
+ledger until they are trained on the 21:00 target. Until the ledger has 60
+matched days, there is no evidence either way about beating Open-Meteo.
+
 ## Reproduce
 
     python3 scripts/walk_forward_audit.py --test-days 365 --refit 7
+    python3 scripts/ledger_daily.py --score   # ledger scoreboard
