@@ -133,3 +133,55 @@ def test_daily_plan_records_only_what_was_known(tmp_path):
     for r in again:
         with pytest.raises(L.LedgerError):
             L.append(r, p)
+
+
+def test_daily_plan_supersedes_corrected_upstream_observation(tmp_path):
+    db = tmp_path / "f.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE daily_actuals (date TEXT PRIMARY KEY, sensor_temp_c REAL, recorded_at TEXT, source TEXT)")
+    conn.executemany("INSERT INTO daily_actuals VALUES (?,?,?,?)", [
+        ("2026-11-02", 22.6, "2026-11-02T16:05:00Z", "airport_vobg_metar"),  # corrected re-issue
+    ])
+    conn.commit(); conn.close()
+    p = tmp_path / "l.jsonl"
+    original = L.append(obs("2026-11-02", 22.0, "2026-11-02T15:42:00Z"), p)
+    now = datetime(2026, 11, 3, 13, 40, tzinfo=timezone.utc)
+    new = daily.plan(now, L.read(p), daily.airport_observations(db), None)
+    corr = [r for r in new if r["kind"] == "observation"]
+    assert len(corr) == 1
+    assert corr[0]["value"] == 22.6 and corr[0]["supersedes"] == original["hash"]
+    L.append(corr[0], p)
+    assert L.verify(p) == []
+    live = L.current_observations(L.read(p))
+    assert live["2026-11-02"]["value"] == 22.6
+    # an unchanged re-issue on the next run adds nothing
+    again = daily.plan(now + timedelta(minutes=5), L.read(p), daily.airport_observations(db), None)
+    assert [r for r in again if r["kind"] == "observation"] == []
+
+
+def test_daily_plan_supersession_chains_corrections_of_corrections(tmp_path):
+    db = tmp_path / "f.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE daily_actuals (date TEXT PRIMARY KEY, sensor_temp_c REAL, recorded_at TEXT, source TEXT)")
+    p = tmp_path / "l.jsonl"
+    first = L.append(obs("2026-11-02", 22.0, "2026-11-02T15:42:00Z"), p)
+
+    def run(value, stamp):
+        conn.execute("UPDATE daily_actuals SET sensor_temp_c=?, recorded_at=?", (value, stamp))
+        conn.commit()
+        now = datetime(2026, 11, 3, 13, 40, tzinfo=timezone.utc)
+        new = daily.plan(now, L.read(p), daily.airport_observations(db), None)
+        corr = [r for r in new if r["kind"] == "observation"]
+        return [L.append(r, p) for r in corr]
+
+    conn.execute("INSERT INTO daily_actuals VALUES (?,?,?,?)", ("2026-11-02", 22.6, "2026-11-02T16:05:00Z", "airport_vobg_metar"))
+    conn.commit()
+    corr1 = run(22.6, "2026-11-02T16:05:00Z")
+    assert len(corr1) == 1 and corr1[0]["supersedes"] == first["hash"]
+    corr2 = run(23.1, "2026-11-02T17:40:00Z")  # correction of the correction
+    assert len(corr2) == 1 and corr2[0]["value"] == 23.1
+    assert corr2[0]["supersedes"] == corr1[0]["hash"]
+    assert L.verify(p) == []
+    live = L.current_observations(L.read(p))
+    assert live["2026-11-02"]["value"] == 23.1
+    conn.close()

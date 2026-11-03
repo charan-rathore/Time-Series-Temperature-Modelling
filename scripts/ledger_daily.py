@@ -89,10 +89,20 @@ def plan(now: datetime, records: List[Dict[str, Any]], observations: List[Dict[s
     today = now.astimezone(IST).date()
     stamp = iso(now)
     out: List[Dict[str, Any]] = []
-    have = {(r["source"], r["date"]) for r in records if r["kind"] == "observation"}
+    live_obs = current_observations(records, TARGET, OBS_SOURCE)
     for o in observations:
         # only days whose 21:00 IST window has passed
-        if o["date"] >= today.isoformat() or (OBS_SOURCE, o["date"]) in have:
+        if o["date"] >= today.isoformat():
+            continue
+        existing = live_obs.get(o["date"])
+        if existing is not None:
+            # Upstream corrections (a re-issued METAR for an already-recorded
+            # date) must not be silently skipped: append a superseding record
+            # when the value changed, naming the live record it replaces.
+            if o["value"] != existing["value"] and existing.get("hash"):
+                out.append({"kind": "observation", "source": OBS_SOURCE, "target": TARGET, "date": o["date"],
+                            "value": o["value"], "observed_at": o["observed_at"], "issued_at": stamp,
+                            "supersedes": existing["hash"]})
             continue
         out.append({"kind": "observation", "source": OBS_SOURCE, "target": TARGET, "date": o["date"],
                     "value": o["value"], "observed_at": o["observed_at"], "issued_at": stamp})
