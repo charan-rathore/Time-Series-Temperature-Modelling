@@ -1,0 +1,352 @@
+{
+ "protocol": {
+  "data": "data/bundle/daily_merged.csv",
+  "rows": 871,
+  "range": "2024-06-01 to 2026-10-19",
+  "origins": 365,
+  "refit_days": 7,
+  "hot_day_threshold_c": 26.8,
+  "sensor_rows": 40
+ },
+ "horizons": {
+  "day1": {
+   "n": 365,
+   "models": {
+    "persistence": {
+     "rmse": 1.243,
+     "mae": 0.895,
+     "bias": -0.001,
+     "skill_vs_persistence": 0.0,
+     "rmse_minus_persistence_95ci": [
+      0.0,
+      0.0
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 40,
+      "pod": 0.769,
+      "far": 0.231,
+      "false_alarms": 12
+     }
+    },
+    "seasonal_naive_7": {
+     "rmse": 1.87,
+     "mae": 1.448,
+     "bias": -0.032,
+     "skill_vs_persistence": -0.504,
+     "rmse_minus_persistence_95ci": [
+      0.412,
+      0.827
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 30,
+      "pod": 0.577,
+      "far": 0.423,
+      "false_alarms": 22
+     }
+    },
+    "climatology": {
+     "rmse": 1.693,
+     "mae": 1.35,
+     "bias": -0.404,
+     "skill_vs_persistence": -0.362,
+     "rmse_minus_persistence_95ci": [
+      0.224,
+      0.685
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 15,
+      "pod": 0.288,
+      "far": 0.167,
+      "false_alarms": 3
+     }
+    },
+    "anomaly_ar1": {
+     "rmse": 1.18,
+     "mae": 0.91,
+     "bias": -0.153,
+     "skill_vs_persistence": 0.051,
+     "rmse_minus_persistence_95ci": [
+      -0.121,
+      0.002
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 32,
+      "pod": 0.615,
+      "far": 0.111,
+      "false_alarms": 4
+     }
+    },
+    "ridge": {
+     "rmse": 1.147,
+     "mae": 0.864,
+     "bias": -0.024,
+     "skill_vs_persistence": 0.078,
+     "rmse_minus_persistence_95ci": [
+      -0.159,
+      -0.033
+     ],
+     "beats_persistence": true,
+     "hot_days": {
+      "events": 52,
+      "hits": 36,
+      "pod": 0.692,
+      "far": 0.143,
+      "false_alarms": 6
+     }
+    },
+    "gbm": {
+     "rmse": 1.256,
+     "mae": 0.943,
+     "bias": -0.131,
+     "skill_vs_persistence": -0.01,
+     "rmse_minus_persistence_95ci": [
+      -0.09,
+      0.127
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 36,
+      "pod": 0.692,
+      "far": 0.2,
+      "false_alarms": 9
+     }
+    }
+   }
+  },
+  "day2": {
+   "n": 365,
+   "models": {
+    "persistence": {
+     "rmse": 1.461,
+     "mae": 1.081,
+     "bias": -0.006,
+     "skill_vs_persistence": 0.0,
+     "rmse_minus_persistence_95ci": [
+      0.0,
+      0.0
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 37,
+      "pod": 0.712,
+      "far": 0.288,
+      "false_alarms": 15
+     }
+    },
+    "seasonal_naive_7": {
+     "rmse": 1.871,
+     "mae": 1.449,
+     "bias": -0.031,
+     "skill_vs_persistence": -0.28,
+     "rmse_minus_persistence_95ci": [
+      0.216,
+      0.596
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 30,
+      "pod": 0.577,
+      "far": 0.423,
+      "false_alarms": 22
+     }
+    },
+    "climatology": {
+     "rmse": 1.739,
+     "mae": 1.387,
+     "bias": -0.423,
+     "skill_vs_persistence": -0.19,
+     "rmse_minus_persistence_95ci": [
+      0.026,
+      0.541
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 14,
+      "pod": 0.269,
+      "far": 0.176,
+      "false_alarms": 3
+     }
+    },
+    "anomaly_ar1": {
+     "rmse": 1.388,
+     "mae": 1.096,
+     "bias": -0.234,
+     "skill_vs_persistence": 0.05,
+     "rmse_minus_persistence_95ci": [
+      -0.184,
+      0.052
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 24,
+      "pod": 0.462,
+      "far": 0.143,
+      "false_alarms": 4
+     }
+    },
+    "ridge": {
+     "rmse": 1.351,
+     "mae": 1.043,
+     "bias": -0.048,
+     "skill_vs_persistence": 0.076,
+     "rmse_minus_persistence_95ci": [
+      -0.183,
+      -0.03
+     ],
+     "beats_persistence": true,
+     "hot_days": {
+      "events": 52,
+      "hits": 31,
+      "pod": 0.596,
+      "far": 0.184,
+      "false_alarms": 7
+     }
+    },
+    "gbm": {
+     "rmse": 1.519,
+     "mae": 1.128,
+     "bias": -0.285,
+     "skill_vs_persistence": -0.039,
+     "rmse_minus_persistence_95ci": [
+      -0.129,
+      0.254
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 19,
+      "pod": 0.365,
+      "far": 0.174,
+      "false_alarms": 4
+     }
+    }
+   }
+  },
+  "day3": {
+   "n": 365,
+   "models": {
+    "persistence": {
+     "rmse": 1.617,
+     "mae": 1.202,
+     "bias": -0.012,
+     "skill_vs_persistence": 0.0,
+     "rmse_minus_persistence_95ci": [
+      0.0,
+      0.0
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 32,
+      "pod": 0.615,
+      "far": 0.385,
+      "false_alarms": 20
+     }
+    },
+    "seasonal_naive_7": {
+     "rmse": 1.871,
+     "mae": 1.45,
+     "bias": -0.03,
+     "skill_vs_persistence": -0.157,
+     "rmse_minus_persistence_95ci": [
+      0.085,
+      0.423
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 30,
+      "pod": 0.577,
+      "far": 0.423,
+      "false_alarms": 22
+     }
+    },
+    "climatology": {
+     "rmse": 1.783,
+     "mae": 1.421,
+     "bias": -0.441,
+     "skill_vs_persistence": -0.103,
+     "rmse_minus_persistence_95ci": [
+      -0.104,
+      0.435
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 13,
+      "pod": 0.25,
+      "far": 0.188,
+      "false_alarms": 3
+     }
+    },
+    "anomaly_ar1": {
+     "rmse": 1.54,
+     "mae": 1.223,
+     "bias": -0.3,
+     "skill_vs_persistence": 0.048,
+     "rmse_minus_persistence_95ci": [
+      -0.225,
+      0.107
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 18,
+      "pod": 0.346,
+      "far": 0.143,
+      "false_alarms": 3
+     }
+    },
+    "ridge": {
+     "rmse": 1.483,
+     "mae": 1.159,
+     "bias": -0.069,
+     "skill_vs_persistence": 0.083,
+     "rmse_minus_persistence_95ci": [
+      -0.235,
+      -0.015
+     ],
+     "beats_persistence": true,
+     "hot_days": {
+      "events": 52,
+      "hits": 30,
+      "pod": 0.577,
+      "far": 0.211,
+      "false_alarms": 8
+     }
+    },
+    "gbm": {
+     "rmse": 1.575,
+     "mae": 1.185,
+     "bias": -0.333,
+     "skill_vs_persistence": 0.026,
+     "rmse_minus_persistence_95ci": [
+      -0.253,
+      0.195
+     ],
+     "beats_persistence": false,
+     "hot_days": {
+      "events": 52,
+      "hits": 20,
+      "pod": 0.385,
+      "far": 0.13,
+      "false_alarms": 3
+     }
+    }
+   }
+  }
+ }
+}

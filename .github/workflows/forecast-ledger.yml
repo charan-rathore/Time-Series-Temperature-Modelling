@@ -1,0 +1,46 @@
+# Daily, before 21:00 IST: append the day's forecasts for the 21:00 IST
+# temperature D+1..D+3 (Open-Meteo forecast API and persistence) and any new
+# 21:00 airport observations to data/ledger/ledger.jsonl, an append-only,
+# hash-chained file (src/evaluation/ledger.py). The run refuses to write if
+# the existing ledger fails verification. Scheduled runs start once this
+# file is on the default branch.
+name: Daily forecast ledger
+
+on:
+  schedule:
+    - cron: '37 13 * * *'  # 19:07 IST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: forecast-ledger
+  cancel-in-progress: false
+
+jobs:
+  append:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests python-dotenv pyyaml pytest
+      - run: python -m pytest -q tests/test_forecast_ledger.py
+      - name: Append today's forecasts and new observations
+        run: python scripts/ledger_daily.py
+      - name: Scoreboard (claims only with n >= 60 and an interval excluding 0)
+        run: python scripts/ledger_daily.py --score | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Commit the ledger if it grew
+        run: |
+          git config user.name "Charan Rathore"
+          git config user.email "180254320+charan-rathore@users.noreply.github.com"
+          git add data/ledger/ledger.jsonl
+          if git diff --cached --quiet; then
+            echo "nothing new"
+          else
+            git commit -s -m "data: daily forecast ledger [skip ci]"
+            git pull --rebase
+            git push
+          fi
