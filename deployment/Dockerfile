@@ -2,7 +2,7 @@
 # Build: docker build -t thermosense -f deployment/Dockerfile .
 # Run: docker run -p 8000:8000 --env-file .env thermosense
 
-FROM python:3.11-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 
