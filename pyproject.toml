@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-history = ["psycopg[binary]==3.3.3"]
+history = ["psycopg[binary]==3.3.6"]
 
 [tool.vercel]
 entrypoint = "src.api.main:app"
