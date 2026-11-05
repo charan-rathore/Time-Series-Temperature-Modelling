@@ -85,6 +85,7 @@ it("shows 'none yet' instead of bare zeros when the station has no data", async 
   api.getStatus.mockResolvedValue({
     data_available: false,
     data_rows: 0,
+    sensor_reading_rows: 0, // current backend always sends the split; zero readings is "none yet"
     models_available: [],
     last_training_results: {},
     active_jobs: {},
@@ -94,7 +95,7 @@ it("shows 'none yet' instead of bare zeros when the station has no data", async 
   render(<Dashboard onNavigate={jest.fn()} />);
   await screen.findByRole("heading", { name: /Cooling is about a tenth/ });
   const ledger = screen.getByRole("region", { name: "Station record" });
-  expect(within(ledger).getAllByText("none yet")).toHaveLength(2);
+  expect(within(ledger).getAllByText("none yet")).toHaveLength(3); // station readings + grid history days + models
 });
 
 it("marks fallback and unavailable forecasts as provisional, never trained", async () => {
