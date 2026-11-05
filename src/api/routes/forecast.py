@@ -9,6 +9,7 @@ POST /feedback
   Appends to the local data store and updates the api_bias rolling feature.
 """
 
+import json
 import math
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -22,6 +23,68 @@ router = APIRouter()
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 PROCESSED_PATH = _PROJECT_ROOT / "data" / "bundle" / "daily_merged.csv"
+REGISTRY_PATH = _PROJECT_ROOT / "models" / "registry.json"
+
+_UNTRAINED_MODELS = {"climatology", "fallback", "placeholder", "unknown"}
+
+
+def _served_artifact_hashes(manager, model_name: str) -> Optional[dict]:
+    """Load-time identity of the artifacts behind the served model: the
+    hashes ModelManager recorded from the exact bytes it deserialized. A
+    file swapped on disk later cannot re-identify the in-memory model."""
+    recorded = getattr(manager, "artifact_hashes", None) if manager is not None else None
+    if not recorded:
+        return None
+    if model_name == "lgbm":
+        selected = {n: h for n, h in recorded.items() if n.startswith("lgbm_h") and n.endswith(".pkl")}
+    elif model_name in ("sarima", "tft", "ensemble"):
+        wanted = {"sarima": "sarima.pkl", "tft": "tft.pkl", "ensemble": "ensemble.pkl"}[model_name]
+        selected = {n: h for n, h in recorded.items() if n == wanted}
+    else:
+        return None
+    return selected or None
+
+
+def _artifacts_match(version: dict, loaded_hashes: dict) -> bool:
+    """Every loaded artifact must hash to what the version recorded at
+    training time. Anything else - replaced file, stale registry, a record
+    that never tracked this artifact - means the binding is unverified."""
+    recorded = version.get("artifacts") or {}
+    if not loaded_hashes:
+        return False
+    for name, actual in loaded_hashes.items():
+        if recorded.get(name) != actual:
+            return False
+    return True
+
+
+def _training_provenance(model_name: str, loaded_hashes: Optional[dict]) -> tuple[Optional[str], Optional[str]]:
+    """Training window + timestamp of the version actually serving `model_name`.
+
+    A registry record only earns the claim when its identity is verified
+    end to end: the record must be for the served model, selected by the
+    champion pointer when one exists (never bare versions[-1], which may be
+    an unrelated later record), AND every artifact file the manager loaded
+    must hash to what the record registered. Any gap - missing registry,
+    ambiguous candidates, wrong-model champion, stale or replaced artifact -
+    means the serving version is unknown, reported as no provenance, never
+    guessed.
+    """
+    if not loaded_hashes:
+        return None, None
+    try:
+        registry = json.loads(REGISTRY_PATH.read_text())
+    except Exception:
+        return None, None
+    versions = [v for v in (registry.get("versions") or []) if isinstance(v, dict)]
+    candidates = [v for v in versions if v.get("model") == model_name]
+    champion = (registry.get("champions") or {}).get(model_name)
+    if champion:
+        candidates = [v for v in candidates if v.get("version") == champion]
+    verified = [v for v in candidates if _artifacts_match(v, loaded_hashes)]
+    if len(verified) != 1:
+        return None, None
+    return verified[0].get("data_range"), verified[0].get("created_at")
 
 
 class ForecastPoint(BaseModel):
@@ -31,6 +94,9 @@ class ForecastPoint(BaseModel):
     upper_bound_c: float
     horizon_days: int
     confidence: str = "90%"
+    model_used: Optional[str] = None
+    trained_data_range: Optional[str] = None
+    model_trained_at: Optional[str] = None
 
 
 class ForecastResponse(BaseModel):
@@ -38,6 +104,8 @@ class ForecastResponse(BaseModel):
     generated_at: str
     model_used: str
     forecasts: List[ForecastPoint]
+    trained_data_range: Optional[str] = None
+    model_trained_at: Optional[str] = None
 
 
 class FeedbackRequest(BaseModel):
@@ -79,17 +147,29 @@ def get_forecast(
         raw_forecasts = []
         model_used = "placeholder"
 
+    def point_provenance(point_model: str) -> tuple[Optional[str], Optional[str]]:
+        if point_model in _UNTRAINED_MODELS:
+            return None, None
+        return _training_provenance(point_model, _served_artifact_hashes(manager, point_model))
+
     forecasts = []
     for d in range(1, days + 1):
         forecast_date = (today + timedelta(days=d)).isoformat()
         if d - 1 < len(raw_forecasts):
             fc = raw_forecasts[d - 1]
+            # Horizon fallback can serve a different model per row; each
+            # point carries the provenance of the model that made it.
+            point_model = fc.get("model_used") or "unknown"
+            p_range, p_at = point_provenance(point_model)
             forecasts.append(ForecastPoint(
                 date=forecast_date,
                 predicted_temp_c=fc["predicted_temp_c"],
                 lower_bound_c=fc["lower_bound_c"],
                 upper_bound_c=fc["upper_bound_c"],
                 horizon_days=d,
+                model_used=point_model,
+                trained_data_range=p_range,
+                model_trained_at=p_at,
             ))
         else:
             forecasts.append(ForecastPoint(
@@ -98,13 +178,22 @@ def get_forecast(
                 lower_bound_c=24.5,
                 upper_bound_c=27.5,
                 horizon_days=d,
+                model_used="placeholder",
             ))
+
+    # Response-level provenance describes the headline (day-1) model, which
+    # is what `model_used` reports; per-horizon detail lives on the points.
+    trained_range, trained_at = (None, None)
+    if model_used not in _UNTRAINED_MODELS:
+        trained_range, trained_at = _training_provenance(model_used, _served_artifact_hashes(manager, model_used))
 
     return ForecastResponse(
         location=location_name,
         generated_at=datetime.utcnow().isoformat() + "Z",
         model_used=model_used,
         forecasts=forecasts,
+        trained_data_range=trained_range,
+        model_trained_at=trained_at,
     )
 
 
