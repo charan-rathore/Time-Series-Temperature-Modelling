@@ -83,7 +83,10 @@ def climatology(d: pd.DataFrame, upto: int) -> np.ndarray:
 
 def block_starts(rng, n: int, L: int, B: int):
     """Start indices for a moving-block bootstrap. Starts run 0..n-L inclusive,
-    so every observation, including the last, can be sampled."""
+    so every observation, including the last, can be sampled. Fewer than one
+    full block of observations cannot be bootstrapped under this protocol."""
+    if n < L:
+        raise ValueError(f"block bootstrap needs at least {L} test origins, got {n}")
     return rng.integers(0, n - L + 1, size=(B, n // L))
 
 

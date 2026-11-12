@@ -39,3 +39,16 @@ def test_block_bootstrap_can_sample_every_observation():
     covered[(starts[..., None] + np.arange(L)).ravel()] = True
     assert starts.max() == n - L
     assert covered.all()
+
+
+def test_block_bootstrap_rejects_windows_shorter_than_one_block():
+    rng = np.random.default_rng(0)
+    for n in (1, 13):
+        try:
+            audit.block_starts(rng, n, 14, 10)
+        except ValueError as e:
+            assert "at least 14" in str(e)
+        else:
+            raise AssertionError("short window must be rejected, not return empty resamples")
+    assert audit.block_starts(rng, 14, 14, 10).shape == (10, 1)
+    assert audit.block_starts(rng, 15, 14, 10).shape == (10, 1)
