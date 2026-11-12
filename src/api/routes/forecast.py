@@ -31,6 +31,8 @@ _UNTRAINED_MODELS = {"climatology", "fallback", "placeholder", "unknown"}
 # date is data_through + horizon. SARIMA and the ensemble depend on the SARIMA
 # fit end, which is not recorded anywhere, so their target date is unverified.
 _ORIGIN_VERIFIED_MODELS = {"lgbm", "tft"}
+# Fixed stand-in values with no model behind them: never dated, never current.
+_SYNTHETIC_MODELS = {"placeholder", "unknown"}
 
 
 def _served_artifact_hashes(manager, model_name: str) -> Optional[dict]:
@@ -98,6 +100,8 @@ class ForecastPoint(BaseModel):
     # so it is never labelled as "tomorrow" by guesswork.
     date: Optional[str] = None
     is_current: bool = True
+    # True for the fixed placeholder number: not model output, not a forecast.
+    synthetic: bool = False
     predicted_temp_c: float
     lower_bound_c: float
     upper_bound_c: float
@@ -169,6 +173,8 @@ def get_forecast(
     data_through = through_fn() if callable(through_fn) else None
 
     def target_for(point_model: str, d: int) -> tuple[Optional[str], bool]:
+        if point_model in _SYNTHETIC_MODELS:
+            return None, False
         if point_model in _UNTRAINED_MODELS or data_through is None:
             return (today + timedelta(days=d)).isoformat(), True
         if point_model in _ORIGIN_VERIFIED_MODELS:
@@ -178,7 +184,6 @@ def get_forecast(
 
     forecasts = []
     for d in range(1, days + 1):
-        forecast_date = (today + timedelta(days=d)).isoformat()
         if d - 1 < len(raw_forecasts):
             fc = raw_forecasts[d - 1]
             # Horizon fallback can serve a different model per row; each
@@ -189,6 +194,7 @@ def get_forecast(
             forecasts.append(ForecastPoint(
                 date=point_date,
                 is_current=point_current,
+                synthetic=point_model in _SYNTHETIC_MODELS,
                 predicted_temp_c=fc["predicted_temp_c"],
                 lower_bound_c=fc["lower_bound_c"],
                 upper_bound_c=fc["upper_bound_c"],
@@ -199,7 +205,9 @@ def get_forecast(
             ))
         else:
             forecasts.append(ForecastPoint(
-                date=forecast_date,
+                date=None,
+                is_current=False,
+                synthetic=True,
                 predicted_temp_c=26.0,
                 lower_bound_c=24.5,
                 upper_bound_c=27.5,

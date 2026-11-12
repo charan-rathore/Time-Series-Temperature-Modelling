@@ -80,6 +80,8 @@ export default function Dashboard({ onNavigate }) {
   // The API marks output that is not a real forward forecast (data ended
   // before today) or whose target date it cannot verify.
   const stale = !!forecast && forecast.is_current === false;
+  const synthetic = !!tomorrow?.synthetic;
+  const stationRows = status?.sensor_reading_rows;
   const targetText = tomorrow?.date ? `for ${shortDate(tomorrow.date)}` : "target date unverified";
   const captionTarget = tomorrow?.date
     ? `its output for ${shortDate(tomorrow.date)}`
@@ -96,8 +98,11 @@ export default function Dashboard({ onNavigate }) {
           <p className="page-intro">
             Whether you run the AC or open a window depends on the temperature
             at <em>your street</em> around 9 PM, not on a grid estimate for
-            the nearest airport. ThermoSense measures that one number and
-            keeps score of who predicted it.
+            the nearest airport. ThermoSense is built to learn that one number
+            from a street-level sensor and keep score of who predicted it.
+            {typeof stationRows === "number"
+              ? ` Today it has ${stationRows.toLocaleString()} station readings; the rest of its history is grid data, and the live reading in the sidebar is the airport.`
+              : ""}
           </p>
           <p className="why-source">
             Source:{" "}
@@ -108,7 +113,7 @@ export default function Dashboard({ onNavigate }) {
             >
               IEA, India&rsquo;s electricity demand grows at night (June 2026)
             </a>
-            . {forecast?.location || history?.location || "Bangalore"} station.
+            . Location: {forecast?.location || history?.location || "Bangalore"}.
           </p>
         </div>
         <button className="btn btn-secondary" onClick={load}>
@@ -119,11 +124,13 @@ export default function Dashboard({ onNavigate }) {
       <div className="overview-grid">
         <section
           className="temperature-hero"
-          aria-label={stale ? "Latest model output, not a current forecast" : "Tomorrow's temperature forecast"}
+          aria-label={stale ? (synthetic ? "Placeholder value, not a forecast" : "Latest model output, not a current forecast")  : "Tomorrow's temperature forecast"}
         >
           <div className="hero-top">
             <span className="eyebrow">
-              {stale
+              {synthetic
+                ? "Placeholder · not a forecast"
+                : stale
                 ? `Latest model output · ${targetText}`
                 : `Tomorrow evening · ${shortDate(tomorrow?.date)}`}
             </span>
@@ -133,7 +140,12 @@ export default function Dashboard({ onNavigate }) {
             {temperature(tomorrow?.predicted_temp_c)}
             <span>°C</span>
           </div>
-          {stale ? (
+          {synthetic ? (
+            <p className="hero-caption" data-testid="stale-forecast">
+              This is a fixed placeholder value, not model output and not a forecast. No trained
+              forecast is available right now.
+            </p>
+          ) : stale ? (
             <p className="hero-caption" data-testid="stale-forecast">
               Not a forecast for tomorrow. The data behind this model ends{" "}
               {forecast.data_through ? shortDate(forecast.data_through) : "on an unknown date"}, so
@@ -302,8 +314,8 @@ export default function Dashboard({ onNavigate }) {
       <section className="outlook-section">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Looking ahead</span>
-            <h3>The next three evenings</h3>
+            <span className="eyebrow">{stale ? "Preview, not a forecast" : "Looking ahead"}</span>
+            <h3>{stale ? "Latest model output" : "The next three evenings"}</h3>
           </div>
           <span className="quiet-label">Not hourly or daily averages</span>
         </div>
@@ -316,8 +328,8 @@ export default function Dashboard({ onNavigate }) {
                 onClick={() => onNavigate("forecast")}
               >
                 <span className="outlook-day">
-                  Day {f.horizon_days}
-                  <small>{shortDate(f.date)}</small>
+                  {f.synthetic ? "Placeholder" : f.is_current === false ? `Step ${f.horizon_days}` : `Day ${f.horizon_days}`}
+                  <small>{f.date ? shortDate(f.date) : f.synthetic ? "not a forecast" : "date unverified"}</small>
                 </span>
                 <strong>
                   {temperature(f.predicted_temp_c)}

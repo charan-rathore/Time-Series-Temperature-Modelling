@@ -59,8 +59,12 @@ export default function Forecast() {
       >
         <div>
           <p className="eyebrow">Looking ahead</p>
-          <h2>What to expect at 9 PM</h2>
-          <p>One number per evening, with the range it is likely to fall in.</p>
+          <h2>{forecast && forecast.is_current === false ? "Latest model output" : "What to expect at 9 PM"}</h2>
+          <p>
+            {forecast && forecast.is_current === false
+              ? "Not a forecast for the coming evenings. Kept as a dated preview of what the model last produced."
+              : "One number per evening, with the range it is likely to fall in."}
+          </p>
         </div>
         <div className="btn-group">
           {[1, 2, 3].map((d) => (
@@ -137,10 +141,12 @@ export default function Forecast() {
                     marginBottom: 8,
                   }}
                 />
-                <div className="forecast-day">Day {f.horizon_days}</div>
+                <div className="forecast-day">
+                  {f.synthetic ? "Placeholder" : f.is_current === false ? `Step ${f.horizon_days}` : `Day ${f.horizon_days}`}
+                </div>
                 <div className="forecast-date">
                   {(() => {
-                    if (!f.date) return "date unverified";
+                    if (!f.date) return f.synthetic ? "not a forecast" : "date unverified";
                     const [y, m, d] = f.date.split("-");
                     return d && m && y ? `${d}-${m}-${y}` : f.date;
                   })()}

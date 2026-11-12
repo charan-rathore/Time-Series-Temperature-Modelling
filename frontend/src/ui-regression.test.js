@@ -223,3 +223,31 @@ it("shows the served model's error, not the best of several", async () => {
   expect(ledger).toHaveTextContent("on 29 days");
   expect(ledger).not.toHaveTextContent("had not seen");
 });
+it("frames a placeholder as synthetic, not a forecast, and drops the street claim", async () => {
+  api.getForecast.mockResolvedValue({
+    ...forecast,
+    model_used: "placeholder",
+    is_current: false,
+    forecasts: [{ ...forecast.forecasts[0], date: null, is_current: false, synthetic: true }],
+  });
+  api.getStatus.mockResolvedValue({ data_rows: 871, sensor_reading_rows: 40, last_training_results: {}, active_jobs: {} });
+  render(<Dashboard onNavigate={jest.fn()} />);
+  await screen.findByTestId("stale-forecast");
+  expect(screen.getByTestId("stale-forecast")).toHaveTextContent("not a forecast");
+  expect(screen.getByText("Placeholder · not a forecast")).toBeInTheDocument();
+  expect(screen.queryByText("The next three evenings")).not.toBeInTheDocument();
+  expect(document.body).not.toHaveTextContent("measures that one number");
+  expect(document.body).toHaveTextContent("40 station readings");
+});
+it("retitles the Forecast page and cards when output is not current", async () => {
+  api.getForecast.mockResolvedValue({
+    ...forecast,
+    is_current: false,
+    data_through: "2026-10-19",
+    forecasts: [{ ...forecast.forecasts[0], date: "2026-10-20", is_current: false }],
+  });
+  render(<Forecast />);
+  await screen.findByRole("heading", { name: "Latest model output" });
+  expect(screen.queryByText("What to expect at 9 PM")).not.toBeInTheDocument();
+  expect(screen.getByText("Step 1")).toBeInTheDocument();
+});
