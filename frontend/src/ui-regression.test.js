@@ -178,3 +178,48 @@ it("keeps pipeline controls and records action errors inline", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("job busy");
   expect(api.runTraining).not.toHaveBeenCalled();
 });
+it("never presents stale model output as tomorrow's forecast", async () => {
+  api.getForecast.mockResolvedValue({
+    ...forecast,
+    is_current: false,
+    data_through: "2026-10-19",
+    forecasts: [{ ...forecast.forecasts[0], date: "2026-10-20", is_current: false }],
+  });
+  render(<Dashboard onNavigate={jest.fn()} />);
+  await screen.findByTestId("stale-forecast");
+  const hero = screen.getByRole("region", { name: "Latest model output, not a current forecast" });
+  expect(within(hero).queryByText(/Tomorrow evening/)).not.toBeInTheDocument();
+  expect(hero).toHaveTextContent("Latest model output · for 20 Oct");
+  expect(hero).toHaveTextContent("ends 19 Oct");
+});
+it("says the target date is unverified instead of inventing one", async () => {
+  api.getForecast.mockResolvedValue({
+    ...forecast,
+    model_used: "sarima",
+    is_current: false,
+    data_through: "2026-10-19",
+    forecasts: [{ ...forecast.forecasts[0], date: null, is_current: false }],
+  });
+  render(<Forecast />);
+  await screen.findByTestId("stale-forecast");
+  expect(screen.getByText("date unverified")).toBeInTheDocument();
+});
+it("shows the served model's error, not the best of several", async () => {
+  api.getForecast.mockResolvedValue({ ...forecast, model_used: "sarima" });
+  api.getStatus.mockResolvedValue({
+    data_available: true,
+    data_rows: 30,
+    models_available: ["sarima"],
+    last_training_results: {
+      sarima: { day1: { rmse: 1.27, n_observations: 29 } },
+      lgbm: { day1: { rmse: 1.19, n_observations: 29 } },
+    },
+    active_jobs: {},
+  });
+  render(<Dashboard onNavigate={jest.fn()} />);
+  await screen.findByText("Typical miss, next day");
+  const ledger = screen.getByRole("region", { name: "Station record" });
+  expect(within(ledger).getByText("1.3")).toBeInTheDocument();
+  expect(ledger).toHaveTextContent("on 29 days");
+  expect(ledger).not.toHaveTextContent("had not seen");
+});

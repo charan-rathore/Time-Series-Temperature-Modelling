@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen, within } from "@testing-library/react";
+import SensorStatus from "./components/SensorStatus";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import Leaderboard from "./pages/Leaderboard";
@@ -172,4 +173,10 @@ it("history opens on the most recent 90 days, not the project's first month", as
   expect(Number(end.slice(0, 4))).toBe(year);
   const days = (new Date(end) - new Date(start)) / 86400000;
   expect(days).toBe(90);
+});
+it("labels the airport METAR reading as an airport reading, not the home sensor", async () => {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+  api.getSensorLatest.mockResolvedValue({ date: day, sensor_temp_c: 23, source: "airport_vobg_metar" });
+  render(<SensorStatus />);
+  expect(await screen.findByText(/airport METAR · 23.0°c this evening/)).toBeInTheDocument();
 });
