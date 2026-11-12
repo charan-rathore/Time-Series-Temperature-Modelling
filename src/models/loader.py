@@ -8,6 +8,7 @@ a unified interface for the API routes to generate forecasts.
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -212,6 +213,14 @@ class ModelManager:
             if name in available:
                 return name
         return "placeholder"
+
+    def data_through(self) -> Optional[date]:
+        """Last day in the processed dataset that forecast inputs are built from."""
+        try:
+            latest = load_processed()["date"].max()
+            return None if pd.isna(latest) else pd.Timestamp(latest).date()
+        except Exception:
+            return None
 
     def forecast(self, days: int = 3) -> List[Dict[str, Any]]:
         """

@@ -26,6 +26,11 @@ PROCESSED_PATH = _PROJECT_ROOT / "data" / "bundle" / "daily_merged.csv"
 REGISTRY_PATH = _PROJECT_ROOT / "models" / "registry.json"
 
 _UNTRAINED_MODELS = {"climatology", "fallback", "placeholder", "unknown"}
+# These models predict `horizon` days after the last row of the processed
+# dataset (they are fed features.tail(1) / the feature matrix), so their target
+# date is data_through + horizon. SARIMA and the ensemble depend on the SARIMA
+# fit end, which is not recorded anywhere, so their target date is unverified.
+_ORIGIN_VERIFIED_MODELS = {"lgbm", "tft"}
 
 
 def _served_artifact_hashes(manager, model_name: str) -> Optional[dict]:
@@ -88,7 +93,11 @@ def _training_provenance(model_name: str, loaded_hashes: Optional[dict]) -> tupl
 
 
 class ForecastPoint(BaseModel):
-    date: str
+    # Verified calendar date this value is for. None when the model's forecast
+    # origin cannot be tied to a date (SARIMA/ensemble fit end is not recorded),
+    # so it is never labelled as "tomorrow" by guesswork.
+    date: Optional[str] = None
+    is_current: bool = True
     predicted_temp_c: float
     lower_bound_c: float
     upper_bound_c: float
@@ -106,6 +115,10 @@ class ForecastResponse(BaseModel):
     forecasts: List[ForecastPoint]
     trained_data_range: Optional[str] = None
     model_trained_at: Optional[str] = None
+    # Last day of the dataset the forecast inputs come from, and whether every
+    # point is a real forward-looking forecast (target date after today).
+    data_through: Optional[str] = None
+    is_current: bool = True
 
 
 class FeedbackRequest(BaseModel):
@@ -152,6 +165,17 @@ def get_forecast(
             return None, None
         return _training_provenance(point_model, _served_artifact_hashes(manager, point_model))
 
+    through_fn = getattr(manager, "data_through", None)
+    data_through = through_fn() if callable(through_fn) else None
+
+    def target_for(point_model: str, d: int) -> tuple[Optional[str], bool]:
+        if point_model in _UNTRAINED_MODELS or data_through is None:
+            return (today + timedelta(days=d)).isoformat(), True
+        if point_model in _ORIGIN_VERIFIED_MODELS:
+            target = data_through + timedelta(days=d)
+            return target.isoformat(), target > today
+        return None, False
+
     forecasts = []
     for d in range(1, days + 1):
         forecast_date = (today + timedelta(days=d)).isoformat()
@@ -161,8 +185,10 @@ def get_forecast(
             # point carries the provenance of the model that made it.
             point_model = fc.get("model_used") or "unknown"
             p_range, p_at = point_provenance(point_model)
+            point_date, point_current = target_for(point_model, d)
             forecasts.append(ForecastPoint(
-                date=forecast_date,
+                date=point_date,
+                is_current=point_current,
                 predicted_temp_c=fc["predicted_temp_c"],
                 lower_bound_c=fc["lower_bound_c"],
                 upper_bound_c=fc["upper_bound_c"],
@@ -194,6 +220,8 @@ def get_forecast(
         forecasts=forecasts,
         trained_data_range=trained_range,
         model_trained_at=trained_at,
+        data_through=data_through.isoformat() if data_through else None,
+        is_current=all(f.is_current for f in forecasts),
     )
 
 

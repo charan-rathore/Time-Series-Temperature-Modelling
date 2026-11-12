@@ -52,6 +52,8 @@ export default function SensorStatus() {
         ? `${reading.sensor_temp_c.toFixed(1)}°c`
         : null;
     const day = reading.date; // YYYY-MM-DD of the 9 PM reading
+    // The hourly poller stores the HAL airport METAR, not the home station.
+    const label = /metar|airport/i.test(reading.source || "") ? "airport METAR" : "sensor";
     // Compare dates in the station's timezone (Asia/Kolkata): the API
     // stores the Bangalore station date, not the viewer's local date.
     const fmt = (d) =>
@@ -64,13 +66,13 @@ export default function SensorStatus() {
     const now = new Date();
     if (day === fmt(now)) {
       state = "live";
-      text = `sensor · ${temp ? `${temp} ` : ""}this evening`;
+      text = `${label} · ${temp ? `${temp} ` : ""}this evening`;
     } else if (day === fmt(new Date(now.getTime() - 86400000))) {
       state = "live";
-      text = `sensor · ${temp ? `${temp} ` : ""}yesterday evening`;
+      text = `${label} · ${temp ? `${temp} ` : ""}yesterday evening`;
     } else {
       state = "stale";
-      text = `sensor · quiet since ${day || "a while ago"}`;
+      text = `${label} · quiet since ${day || "a while ago"}`;
     }
   }
 

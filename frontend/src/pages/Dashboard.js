@@ -68,13 +68,19 @@ export default function Dashboard({ onNavigate }) {
   const modelLabel = model === "climatology" ? "seasonal average"
     : model === "fallback" ? "last recorded reading"
     : model;
-  // Show the error of the model with the strongest held-out evidence,
-  // matching how the API picks what it serves.
+  // Show the day-1 error of the model that is actually served (never the best
+  // of several), with how many days it was measured on.
   const training = status?.last_training_results || {};
-  const rmse = Object.values(training)
-    .map((m) => m?.day1)
-    .filter((d) => typeof d?.rmse === "number" && (d?.n_observations ?? 0) >= 7)
-    .sort((a, b) => a.rmse - b.rmse)[0]?.rmse;
+  const served = training[model]?.day1;
+  const rmseDays =
+    typeof served?.rmse === "number" && (served?.n_observations ?? 0) >= 7
+      ? served.n_observations
+      : null;
+  const rmse = rmseDays ? served.rmse : undefined;
+  // The API marks output that is not a real forward forecast (data ended
+  // before today) or whose target date it cannot verify.
+  const stale = !!forecast && forecast.is_current === false;
+  const targetText = tomorrow?.date ? `for ${shortDate(tomorrow.date)}` : "target date unverified";
   return (
     <>
       <header className="page-header">
@@ -110,11 +116,13 @@ export default function Dashboard({ onNavigate }) {
       <div className="overview-grid">
         <section
           className="temperature-hero"
-          aria-label="Tomorrow's temperature forecast"
+          aria-label={stale ? "Latest model output, not a current forecast" : "Tomorrow's temperature forecast"}
         >
           <div className="hero-top">
             <span className="eyebrow">
-              Tomorrow evening · {shortDate(tomorrow?.date)}
+              {stale
+                ? `Latest model output · ${targetText}`
+                : `Tomorrow evening · ${shortDate(tomorrow?.date)}`}
             </span>
             <span className={`source-tag ${untrained ? "source-tag-provisional" : "source-tag-trained"}`}>{modelLabel}</span>
           </div>
@@ -122,7 +130,15 @@ export default function Dashboard({ onNavigate }) {
             {temperature(tomorrow?.predicted_temp_c)}
             <span>°C</span>
           </div>
-          <p className="hero-caption">What to expect outside at <em>9 PM</em>. Plan the window or the AC around this.</p>
+          {stale ? (
+            <p className="hero-caption" data-testid="stale-forecast">
+              Not a forecast for tomorrow. The data behind this model ends{" "}
+              {forecast.data_through ? shortDate(forecast.data_through) : "on an unknown date"}, so
+              this is its output {targetText}. Do not plan tonight around it.
+            </p>
+          ) : (
+            <p className="hero-caption">What to expect outside at <em>9 PM</em>. Plan the window or the AC around this.</p>
+          )}
           <div className="hero-bottom">
             <span>
               {tomorrow
@@ -194,7 +210,9 @@ export default function Dashboard({ onNavigate }) {
               : "No readings stored yet. The daily pull fills this in; a backfill from Pipeline seeds it."}
           </p>
           <p className="ledger-note">
-            Measured on past days the model had not seen. A guide, not a promise.
+            {rmseDays
+              ? `Error of the served model on ${rmseDays} days in its last training run, not independently audited. A guide, not a promise.`
+              : "No error measurement available for the served model."}
           </p>
         </section>
       </div>

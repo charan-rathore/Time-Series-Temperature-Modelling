@@ -119,6 +119,13 @@ export default function Forecast() {
             )}
           </div>
 
+          {forecast.is_current === false && (
+            <p role="alert" data-testid="stale-forecast" style={{ margin: "12px 0", color: "var(--warning)" }}>
+              Not a forecast for the next days. The data behind these models ends{" "}
+              {forecast.data_through || "on an unknown date"}; each card shows the date its
+              output is for, or says that date cannot be verified.
+            </p>
+          )}
           <div className="card-grid-3" style={{ marginTop: 16 }}>
             {forecast.forecasts.map((f) => (
               <div key={f.horizon_days} className="card forecast-card">
@@ -133,7 +140,8 @@ export default function Forecast() {
                 <div className="forecast-day">Day {f.horizon_days}</div>
                 <div className="forecast-date">
                   {(() => {
-                    const [y, m, d] = (f.date || "").split("-");
+                    if (!f.date) return "date unverified";
+                    const [y, m, d] = f.date.split("-");
                     return d && m && y ? `${d}-${m}-${y}` : f.date;
                   })()}
                 </div>
