@@ -36,8 +36,8 @@
      "bias": -0.032,
      "skill_vs_persistence": -0.504,
      "rmse_minus_persistence_95ci": [
-      0.412,
-      0.827
+      0.408,
+      0.838
      ],
      "beats_persistence": false,
      "hot_days": {
@@ -54,8 +54,8 @@
      "bias": -0.404,
      "skill_vs_persistence": -0.362,
      "rmse_minus_persistence_95ci": [
-      0.224,
-      0.685
+      0.227,
+      0.686
      ],
      "beats_persistence": false,
      "hot_days": {
@@ -72,8 +72,8 @@
      "bias": -0.153,
      "skill_vs_persistence": 0.051,
      "rmse_minus_persistence_95ci": [
-      -0.121,
-      0.002
+      -0.12,
+      0.001
      ],
      "beats_persistence": false,
      "hot_days": {
@@ -90,8 +90,8 @@
      "bias": -0.024,
      "skill_vs_persistence": 0.078,
      "rmse_minus_persistence_95ci": [
-      -0.159,
-      -0.033
+      -0.157,
+      -0.036
      ],
      "beats_persistence": true,
      "hot_days": {
@@ -108,8 +108,8 @@
      "bias": -0.131,
      "skill_vs_persistence": -0.01,
      "rmse_minus_persistence_95ci": [
-      -0.09,
-      0.127
+      -0.089,
+      0.133
      ],
      "beats_persistence": false,
      "hot_days": {
@@ -149,8 +149,8 @@
      "bias": -0.031,
      "skill_vs_persistence": -0.28,
      "rmse_minus_persistence_95ci": [
-      0.216,
-      0.596
+      0.229,
+      0.597
      ],
      "beats_persistence": false,
      "hot_days": {
@@ -167,8 +167,8 @@
      "bias": -0.423,
      "skill_vs_persistence": -0.19,
      "rmse_minus_persistence_95ci": [
-      0.026,
-      0.541
+      0.022,
+      0.542
      ],
      "beats_persistence": false,
      "hot_days": {
@@ -185,8 +185,8 @@
      "bias": -0.234,
      "skill_vs_persistence": 0.05,
      "rmse_minus_persistence_95ci": [
-      -0.184,
-      0.052
+      -0.185,
+      0.046
      ],
      "beats_persistence": false,
      "hot_days": {
@@ -203,8 +203,8 @@
      "bias": -0.048,
      "skill_vs_persistence": 0.076,
      "rmse_minus_persistence_95ci": [
-      -0.183,
-      -0.03
+      -0.184,
+      -0.031
      ],
      "beats_persistence": true,
      "hot_days": {
@@ -221,8 +221,8 @@
      "bias": -0.285,
      "skill_vs_persistence": -0.039,
      "rmse_minus_persistence_95ci": [
-      -0.129,
-      0.254
+      -0.127,
+      0.27
      ],
      "beats_persistence": false,
      "hot_days": {
@@ -262,8 +262,8 @@
      "bias": -0.03,
      "skill_vs_persistence": -0.157,
      "rmse_minus_persistence_95ci": [
-      0.085,
-      0.423
+      0.09,
+      0.419
      ],
      "beats_persistence": false,
      "hot_days": {
@@ -280,8 +280,8 @@
      "bias": -0.441,
      "skill_vs_persistence": -0.103,
      "rmse_minus_persistence_95ci": [
-      -0.104,
-      0.435
+      -0.096,
+      0.427
      ],
      "beats_persistence": false,
      "hot_days": {
@@ -298,8 +298,8 @@
      "bias": -0.3,
      "skill_vs_persistence": 0.048,
      "rmse_minus_persistence_95ci": [
-      -0.225,
-      0.107
+      -0.221,
+      0.102
      ],
      "beats_persistence": false,
      "hot_days": {
@@ -316,8 +316,8 @@
      "bias": -0.069,
      "skill_vs_persistence": 0.083,
      "rmse_minus_persistence_95ci": [
-      -0.235,
-      -0.015
+      -0.232,
+      -0.02
      ],
      "beats_persistence": true,
      "hot_days": {
@@ -334,8 +334,8 @@
      "bias": -0.333,
      "skill_vs_persistence": 0.026,
      "rmse_minus_persistence_95ci": [
-      -0.253,
-      0.195
+      -0.259,
+      0.192
      ],
      "beats_persistence": false,
      "hot_days": {

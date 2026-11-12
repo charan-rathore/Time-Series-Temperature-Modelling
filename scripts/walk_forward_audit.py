@@ -81,6 +81,12 @@ def climatology(d: pd.DataFrame, upto: int) -> np.ndarray:
     return tab
 
 
+def block_starts(rng, n: int, L: int, B: int):
+    """Start indices for a moving-block bootstrap. Starts run 0..n-L inclusive,
+    so every observation, including the last, can be sampled."""
+    return rng.integers(0, n - L + 1, size=(B, n // L))
+
+
 def run(test_days: int, refit: int, seed: int = 0):
     d = load()
     X = features(d)
@@ -144,7 +150,7 @@ def run(test_days: int, refit: int, seed: int = 0):
             rmse = float(np.sqrt(np.mean(e ** 2)))
             # moving-block bootstrap of RMSE(model) - RMSE(persistence)
             L, B = 14, 1000
-            starts = rng.integers(0, len(a) - L, size=(B, len(a) // L))
+            starts = block_starts(rng, len(a), L, B)
             idx = (starts[..., None] + np.arange(L)).reshape(B, -1)
             diff = np.sqrt((e[idx] ** 2).mean(1)) - np.sqrt((e_p[idx] ** 2).mean(1))
             lo, hi = np.percentile(diff, [2.5, 97.5])
