@@ -1,4 +1,4 @@
-"""Independent walk-forward audit of ThermoSense forecasts.
+"""Walk-forward audit of ThermoSense forecasts (separate code from training; not an independent review).
 
 Re-derives every number from data/bundle/daily_merged.csv with code that
 shares nothing with the training pipeline, so a leak there cannot leak here.

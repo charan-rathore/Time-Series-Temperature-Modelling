@@ -14,9 +14,10 @@ code with the training pipeline.
    that, but the page and the README link were never updated. They are
    withdrawn.
 2. **The "ground truth" is mostly Open-Meteo's own archive.** 831 of 871
-   rows have `temp_c == temp_c_api`; 40 rows (2 June to 11 July 2024) are
-   sensor readings. Every score below is forecasting the reanalysis, not a
-   balcony sensor. Claims about beating commercial apps at *your* location
+   rows have `temp_c == temp_c_api`; 40 rows (2 June to 11 July 2024) differ
+   from it and carry a sensor flag in the data (their physical provenance is
+   unverified, see the qualification section). Every score below is
+   forecasting the reanalysis, not a verified balcony sensor. Claims about beating commercial apps at *your* location
    need sensor data that does not exist yet.
 3. **No commercial forecast is archived.** `app_pred_day1..3` hold 5 to 6
    distinct values, and 26/24/24 °C on about 97% of rows: a placeholder
@@ -26,10 +27,10 @@ code with the training pipeline.
    external-forecast baseline yet.
 4. **Machine learning barely beats persistence.** The repo's own
    rolling-origin backtest (`models/backtest.json`, 6 folds) gives LightGBM
-   +2.4% day-1 skill over persistence and 0% at day 3. The independent audit
-   agrees.
+   +2.4% day-1 skill over persistence and 0% at day 3. The walk-forward audit below
+   (separate code, same author) agrees.
 
-## Independent walk-forward audit
+## Walk-forward audit (code separate from training)
 
 365 daily origins (20 Oct 2025 to 16 Oct 2026), expanding window, models refit
 weekly on data up to the origin only. "✓" means the 95% moving-block bootstrap
