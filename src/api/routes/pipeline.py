@@ -128,6 +128,8 @@ class SystemStatus(BaseModel):
     data_available: bool
     data_rows: int
     data_date_range: Optional[str] = None
+    sensor_reading_rows: int = 0
+    sensor_date_range: Optional[str] = None
     features_available: bool
     features_rows: int
     models_available: List[str]
@@ -201,12 +203,21 @@ def get_status(request: Request):
     data_available = PROCESSED_PATH.exists()
     data_rows = 0
     data_range = None
+    sensor_rows = 0
+    sensor_range = None
     if data_available:
         try:
             df = pd.read_csv(PROCESSED_PATH, parse_dates=["date"])
             data_rows = len(df)
             dates = pd.to_datetime(df["date"])
             data_range = f"{dates.min().date()} to {dates.max().date()}"
+            if "is_sensor_reading" in df.columns:
+                sensor_mask = df["is_sensor_reading"].astype(str).str.lower().isin(["true", "1"])
+                sensor_df = df[sensor_mask]
+                sensor_rows = len(sensor_df)
+                if sensor_rows:
+                    sensor_dates = pd.to_datetime(sensor_df["date"])
+                    sensor_range = f"{sensor_dates.min().date()} to {sensor_dates.max().date()}"
         except Exception:
             pass
 
@@ -237,6 +248,8 @@ def get_status(request: Request):
         data_available=data_available,
         data_rows=data_rows,
         data_date_range=data_range,
+        sensor_reading_rows=sensor_rows,
+        sensor_date_range=sensor_range,
         features_available=features_available,
         features_rows=features_rows,
         models_available=model_files,
