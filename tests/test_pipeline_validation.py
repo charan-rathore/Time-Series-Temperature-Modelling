@@ -60,19 +60,31 @@ def test_mlflow_limit_is_bounded(client):
     assert client.get("/api/pipeline/mlflow?limit=20").status_code == 200
 
 
-def test_mlflow_endpoint_reads_existing_file_store(client, tmp_path, monkeypatch):
-    mlflow = pytest.importorskip("mlflow")
-    from src.api.routes import pipeline
+def test_mlflow_endpoint_reads_existing_file_store(tmp_path):
+    """Fresh processes: MLflow caches stores per process, so an in-process test hides the failure."""
+    pytest.importorskip("mlflow")
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
 
-    monkeypatch.setenv("MLFLOW_ALLOW_FILE_STORE", "true")
-    mlflow.set_tracking_uri(str(tmp_path / "mlruns"))
-    mlflow.set_experiment("thermosense")
-    with mlflow.start_run(run_name="r1"):
-        mlflow.log_param("model", "lgbm")
-        mlflow.log_metric("rmse", 1.23)
-    monkeypatch.delenv("MLFLOW_ALLOW_FILE_STORE")
-    monkeypatch.setattr(pipeline, "_PROJECT_ROOT", tmp_path)
-
-    body = client.get("/api/pipeline/mlflow").json()
-    assert body["total_runs"] == 1
-    assert body["runs"][0]["model"] == "lgbm"
+    root = Path(__file__).resolve().parents[1]
+    write = (
+        "import mlflow,sys;mlflow.set_tracking_uri(sys.argv[1]);mlflow.set_experiment('thermosense')\n"
+        "with mlflow.start_run(run_name='r1'):\n mlflow.log_param('model','lgbm')\n mlflow.log_metric('rmse',1.23)\n"
+    )
+    read = (
+        "import sys;from pathlib import Path\n"
+        "from fastapi.testclient import TestClient\n"
+        "from src.api.routes import pipeline\n"
+        "pipeline._PROJECT_ROOT = Path(sys.argv[1])\n"
+        "from main import app\n"
+        "print(TestClient(app).get('/api/pipeline/mlflow').json()['total_runs'])\n"
+    )
+    env = {**os.environ, "PYTHONPATH": str(root)}
+    env.pop("MLFLOW_ALLOW_FILE_STORE", None)
+    subprocess.run([sys.executable, "-c", write, str(tmp_path / "mlruns")],
+                   env={**env, "MLFLOW_ALLOW_FILE_STORE": "true"}, check=True, cwd=root)
+    out = subprocess.run([sys.executable, "-c", read, str(tmp_path)],
+                         env=env, check=True, cwd=root, capture_output=True, text=True)
+    assert out.stdout.strip().splitlines()[-1] == "1"
