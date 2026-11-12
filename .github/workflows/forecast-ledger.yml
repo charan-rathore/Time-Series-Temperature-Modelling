@@ -7,8 +7,6 @@
 name: Daily forecast ledger
 
 on:
-  schedule:
-    - cron: '37 13 * * *'  # 19:07 IST
   workflow_dispatch:
 
 permissions:
