@@ -74,3 +74,9 @@ def test_data_end_yesterday_makes_day_one_today_not_tomorrow(get_forecast):
     body = get_forecast("lgbm", through)
     assert body["forecasts"][0]["date"] == date.today().isoformat()
     assert body["forecasts"][0]["is_current"] is False
+
+
+def test_placeholder_is_synthetic_undated_and_never_current(get_forecast):
+    body = get_forecast("placeholder", date.today())
+    assert body["is_current"] is False
+    assert all(p["synthetic"] and p["date"] is None and not p["is_current"] for p in body["forecasts"])
