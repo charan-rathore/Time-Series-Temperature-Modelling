@@ -30,3 +30,12 @@ def test_climatology_ignores_rows_after_origin():
     future = d.copy()
     future.loc[upto:, "temp_c"] = 999.0
     assert np.allclose(a, audit.climatology(future, upto))
+
+
+def test_block_bootstrap_can_sample_every_observation():
+    n, L = 365, 14
+    starts = audit.block_starts(np.random.default_rng(0), n, L, 4000)
+    covered = np.zeros(n, bool)
+    covered[(starts[..., None] + np.arange(L)).ravel()] = True
+    assert starts.max() == n - L
+    assert covered.all()

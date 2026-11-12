@@ -39,10 +39,10 @@ temperature at or above the 90th percentile of the pre-test period (26.8 °C).
 | Day 1 (n = 365) | RMSE °C | MAE °C | Skill vs persistence | 95% CI of RMSE − persistence | Hot days POD / FAR |
 | --- | ---: | ---: | ---: | --- | --- |
 | Persistence | 1.243 | 0.895 | 0 | - | 0.77 / 0.23 |
-| Seasonal naive (7 d) | 1.870 | 1.448 | −0.504 | [+0.41, +0.83] | 0.58 / 0.42 |
-| Day-of-year climatology | 1.693 | 1.350 | −0.362 | [+0.22, +0.69] | 0.29 / 0.17 |
+| Seasonal naive (7 d) | 1.870 | 1.448 | −0.504 | [+0.41, +0.84] | 0.58 / 0.42 |
+| Day-of-year climatology | 1.693 | 1.350 | −0.362 | [+0.23, +0.69] | 0.29 / 0.17 |
 | Anomaly AR(1) | 1.180 | 0.910 | +0.051 | [−0.12, +0.00] | 0.62 / 0.11 |
-| **Ridge on lags + weather** | **1.147** | **0.864** | **+0.078 ✓** | [−0.16, −0.03] | 0.69 / 0.14 |
+| **Ridge on lags + weather** | **1.147** | **0.864** | **+0.078 ✓** | [−0.16, −0.04] | 0.69 / 0.14 |
 | Gradient boosting (LightGBM stand-in) | 1.256 | 0.943 | −0.010 | [−0.09, +0.13] | 0.69 / 0.20 |
 
 Day 2 and day 3 follow the same pattern: ridge +7.6% and +8.3% skill (both
@@ -54,6 +54,13 @@ RMSE improvement over "tomorrow equals today" on this series, and cuts hot-day
 false alarms from 23% to 14% at day 1 while missing slightly more events
 (POD 0.69 vs 0.77). What it does not support: any claim about sensor-level
 accuracy or about beating commercial apps.
+
+## Qualification of the headline (read before quoting the ~8%)
+
+- One test window of 365 days of one series, refit weekly, one random seed for the bootstrap. Nothing here is a multi-station or out-of-region result.
+- Scores are against the Open-Meteo archive column. 40 of the 871 rows differ from the archive and carry a sensor flag; their physical provenance (which device, placement, calibration) has not been verified, so "sensor" is a label in the data, not a verified measurement.
+- A bug in the moving-block bootstrap (the highest valid block start was never drawn, so the last test day could not be sampled) was fixed in `block_starts`, with a regression test, and the table was regenerated. The change moved interval ends by at most 0.015 °C and no ✓ changed; the effect of any remaining protocol choice (block length 14, 1000 resamples) is not measured.
+- The audit is not independently reviewed. The old 0.107 °C ensemble score was in-sample and is withdrawn; that is a separate matter from this table.
 
 ## What would make the claim real
 

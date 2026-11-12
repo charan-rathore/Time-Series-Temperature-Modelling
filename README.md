@@ -4,7 +4,7 @@
 
 Live dashboard: [thermosense-black.vercel.app](https://thermosense-black.vercel.app)
 
-How accurate is it, honestly? [docs/EVALUATION-AUDIT.md](docs/EVALUATION-AUDIT.md): over 365 walk-forward days a regularised linear model beats "tomorrow equals today" by about 8% RMSE; gradient boosting does not measurably beat it; scores are against the Open-Meteo archive, not a sensor. (An earlier 0.107 °C ensemble score was in-sample and is withdrawn.) · [Watch the live training demo](#live-demo)
+How accurate is it, honestly? [docs/EVALUATION-AUDIT.md](docs/EVALUATION-AUDIT.md): on one 365-day walk-forward window a regularised linear model has about 8% lower RMSE than "tomorrow equals today" and gradient boosting is not distinguishable from it; scores are against the Open-Meteo archive, not a verified sensor, and the audit is not independently reviewed (see its qualification section). (An earlier 0.107 °C ensemble score was in-sample and is withdrawn.) · [Watch the live training demo](#live-demo)
 
 ---
 
