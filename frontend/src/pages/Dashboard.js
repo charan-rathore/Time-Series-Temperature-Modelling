@@ -81,6 +81,9 @@ export default function Dashboard({ onNavigate }) {
   // before today) or whose target date it cannot verify.
   const stale = !!forecast && forecast.is_current === false;
   const targetText = tomorrow?.date ? `for ${shortDate(tomorrow.date)}` : "target date unverified";
+  const captionTarget = tomorrow?.date
+    ? `its output for ${shortDate(tomorrow.date)}`
+    : "its output for a date that cannot be verified";
   return (
     <>
       <header className="page-header">
@@ -134,7 +137,7 @@ export default function Dashboard({ onNavigate }) {
             <p className="hero-caption" data-testid="stale-forecast">
               Not a forecast for tomorrow. The data behind this model ends{" "}
               {forecast.data_through ? shortDate(forecast.data_through) : "on an unknown date"}, so
-              this is its output {targetText}. Do not plan tonight around it.
+              this is {captionTarget}. Do not plan tonight around it.
             </p>
           ) : (
             <p className="hero-caption">What to expect outside at <em>9 PM</em>. Plan the window or the AC around this.</p>
