@@ -58,3 +58,21 @@ def test_mlflow_limit_is_bounded(client):
     assert client.get("/api/pipeline/mlflow?limit=0").status_code == 422
     assert client.get("/api/pipeline/mlflow?limit=101").status_code == 422
     assert client.get("/api/pipeline/mlflow?limit=20").status_code == 200
+
+
+def test_mlflow_endpoint_reads_existing_file_store(client, tmp_path, monkeypatch):
+    mlflow = pytest.importorskip("mlflow")
+    from src.api.routes import pipeline
+
+    monkeypatch.setenv("MLFLOW_ALLOW_FILE_STORE", "true")
+    mlflow.set_tracking_uri(str(tmp_path / "mlruns"))
+    mlflow.set_experiment("thermosense")
+    with mlflow.start_run(run_name="r1"):
+        mlflow.log_param("model", "lgbm")
+        mlflow.log_metric("rmse", 1.23)
+    monkeypatch.delenv("MLFLOW_ALLOW_FILE_STORE")
+    monkeypatch.setattr(pipeline, "_PROJECT_ROOT", tmp_path)
+
+    body = client.get("/api/pipeline/mlflow").json()
+    assert body["total_runs"] == 1
+    assert body["runs"][0]["model"] == "lgbm"

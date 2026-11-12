@@ -12,6 +12,7 @@ GET  /pipeline/mlflow     - Get MLflow experiment runs
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -300,6 +301,10 @@ def get_mlflow_runs(limit: int = Query(20, ge=1, le=100)):
 
     tracking_uri = str(mlruns_path)
     try:
+        # MLflow 3 refuses the plain-directory (file) store unless opted in; this
+        # endpoint only reads an existing ./mlruns, so allow it instead of
+        # silently reporting zero runs.
+        os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
         mlflow.set_tracking_uri(tracking_uri)
         experiment = mlflow.get_experiment_by_name("thermosense")
         if experiment is None:
