@@ -68,3 +68,49 @@ def test_non_finite_temperature_is_rejected_and_store_unchanged(store, raw):
     assert response.status_code == 400
     assert "accepted" not in response.text
     assert store.read_bytes() == before
+
+def test_concurrent_feedback_receipts_do_not_lose_an_observation(store, monkeypatch):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    real_read_csv = pd.read_csv
+    real_to_csv = pd.DataFrame.to_csv
+    write_started = threading.Event()
+    competing_read_done = threading.Event()
+
+    def coordinated_read(path, *args, **kwargs):
+        frame = real_read_csv(path, *args, **kwargs)
+        if path == store:
+            competing_read_done.set()
+        return frame
+
+    def coordinated_write(self, path, *args, **kwargs):
+        if path == store and not write_started.is_set():
+            write_started.set()
+            # On the unlocked path this lets the competing request read the
+            # original CSV before the first write lands. With the fix, the
+            # competitor is blocked before read and this bounded wait expires.
+            competing_read_done.wait(timeout=0.3)
+        return real_to_csv(self, path, *args, **kwargs)
+
+    monkeypatch.setattr(pd, "read_csv", coordinated_read)
+    monkeypatch.setattr(pd.DataFrame, "to_csv", coordinated_write)
+
+    payloads = [
+        {"date": "2024-07-11", "actual_temp_c": 27.0},
+        {"date": "2024-07-12", "actual_temp_c": 29.0},
+    ]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(
+            lambda payload: TestClient(app, raise_server_exceptions=False).post(
+                "/forecast/feedback", json=payload),
+            payloads,
+        ))
+    assert [response.status_code for response in responses] == [200, 200]
+    frame = real_read_csv(store, parse_dates=["date"])
+    actuals = {
+        row.date.strftime("%Y-%m-%d"): row.temp_c
+        for row in frame.itertuples(index=False)
+    }
+    assert actuals["2024-07-11"] == 27.0
+    assert actuals["2024-07-12"] == 29.0
