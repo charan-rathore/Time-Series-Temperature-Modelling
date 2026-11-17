@@ -42,7 +42,7 @@ class TestUploadReadings:
             json={
                 "readings": [
                     {
-                        "timestamp": "2026-05-07T21:00:00Z",
+                        "timestamp": "2026-05-07T15:30:00Z",
                         "temp_c": 27.5,
                         "humidity_pct": 65.0,
                         "source": "dht22_sensor"
@@ -62,7 +62,7 @@ class TestUploadReadings:
             json={
                 "readings": [
                     {"timestamp": "2026-05-07T12:00:00Z", "temp_c": 30.0},
-                    {"timestamp": "2026-05-07T21:00:00Z", "temp_c": 27.0},
+                    {"timestamp": "2026-05-07T15:30:00Z", "temp_c": 27.0},
                     {"timestamp": "2026-05-07T03:00:00Z", "temp_c": 22.0},
                 ]
             }
@@ -87,9 +87,9 @@ class TestUploadReadings:
             "/api/sensor/readings",
             json={
                 "readings": [
-                    {"timestamp": "2026-05-05T21:00:00Z", "temp_c": 26.0},
-                    {"timestamp": "2026-05-06T21:00:00Z", "temp_c": 27.0},
-                    {"timestamp": "2026-05-07T21:00:00Z", "temp_c": 28.0},
+                    {"timestamp": "2026-05-05T15:30:00Z", "temp_c": 26.0},
+                    {"timestamp": "2026-05-06T15:30:00Z", "temp_c": 27.0},
+                    {"timestamp": "2026-05-07T15:30:00Z", "temp_c": 28.0},
                 ]
             }
         )
@@ -111,7 +111,7 @@ class TestLatestReading:
             "/api/sensor/readings",
             json={
                 "readings": [
-                    {"timestamp": "2026-05-07T21:00:00Z", "temp_c": 27.5}
+                    {"timestamp": "2026-05-07T15:30:00Z", "temp_c": 27.5}
                 ]
             }
         )
@@ -139,9 +139,9 @@ class TestSensorHistory:
             "/api/sensor/readings",
             json={
                 "readings": [
-                    {"timestamp": (date.today() - timedelta(days=2)).isoformat() + "T21:00:00Z", "temp_c": 26.0},
-                    {"timestamp": (date.today() - timedelta(days=1)).isoformat() + "T21:00:00Z", "temp_c": 27.0},
-                    {"timestamp": (date.today() - timedelta(days=0)).isoformat() + "T21:00:00Z", "temp_c": 28.0},
+                    {"timestamp": (date.today() - timedelta(days=2)).isoformat() + "T15:30:00Z", "temp_c": 26.0},
+                    {"timestamp": (date.today() - timedelta(days=1)).isoformat() + "T15:30:00Z", "temp_c": 27.0},
+                    {"timestamp": (date.today() - timedelta(days=0)).isoformat() + "T15:30:00Z", "temp_c": 28.0},
                 ]
             }
         )
@@ -158,9 +158,9 @@ class TestSensorHistory:
             "/api/sensor/readings",
             json={
                 "readings": [
-                    {"timestamp": "2026-05-01T21:00:00Z", "temp_c": 25.0},
-                    {"timestamp": "2026-05-05T21:00:00Z", "temp_c": 26.0},
-                    {"timestamp": "2026-05-10T21:00:00Z", "temp_c": 27.0},
+                    {"timestamp": "2026-05-01T15:30:00Z", "temp_c": 25.0},
+                    {"timestamp": "2026-05-05T15:30:00Z", "temp_c": 26.0},
+                    {"timestamp": "2026-05-10T15:30:00Z", "temp_c": 27.0},
                 ]
             }
         )
