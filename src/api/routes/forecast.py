@@ -11,6 +11,8 @@ POST /feedback
 
 import json
 import math
+import os
+import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -33,6 +35,18 @@ _UNTRAINED_MODELS = {"climatology", "fallback", "placeholder", "unknown"}
 _ORIGIN_VERIFIED_MODELS = {"lgbm", "tft"}
 # Fixed stand-in values with no model behind them: never dated, never current.
 _SYNTHETIC_MODELS = {"placeholder", "unknown"}
+_FEEDBACK_LOCK = threading.Lock()
+
+
+def _write_csv_atomically(df: pd.DataFrame, path: Path) -> None:
+    """Write one complete CSV generation, then make it visible with rename."""
+    temp_path = f"{path}.{os.getpid()}.tmp"
+    try:
+        df.to_csv(temp_path, index=False)
+        os.replace(temp_path, path)
+    except Exception:
+        Path(temp_path).unlink(missing_ok=True)
+        raise
 
 
 def _served_artifact_hashes(manager, model_name: str) -> Optional[dict]:
@@ -254,39 +268,40 @@ def post_feedback(payload: FeedbackRequest, request: Request):
 
     bias_updated = False
     try:
-        if not PROCESSED_PATH.exists():
-            raise FileNotFoundError("Processed observation store is unavailable")
-        df = pd.read_csv(PROCESSED_PATH, parse_dates=["date"])
-        obs_dt = pd.Timestamp(obs_date)
+        with _FEEDBACK_LOCK:
+            if not PROCESSED_PATH.exists():
+                raise FileNotFoundError("Processed observation store is unavailable")
+            df = pd.read_csv(PROCESSED_PATH, parse_dates=["date"])
+            obs_dt = pd.Timestamp(obs_date)
 
-        if obs_dt in df["date"].values:
-            idx = df.index[df["date"] == obs_dt][0]
-            df.at[idx, "temp_c"] = payload.actual_temp_c
-            df.at[idx, "is_sensor_reading"] = True
-            if "temp_c_api" in df.columns and pd.notna(df.at[idx, "temp_c_api"]):
-                df.at[idx, "api_bias"] = payload.actual_temp_c - df.at[idx, "temp_c_api"]
-                bias_updated = True
-        else:
-            new_row = pd.DataFrame([{
-                "date": obs_dt,
-                "temp_c": payload.actual_temp_c,
-                "is_sensor_reading": True,
-                "gap_filled": False,
-            }])
-            df = pd.concat([df, new_row], ignore_index=True)
-            df = df.sort_values("date").reset_index(drop=True)
+            if obs_dt in df["date"].values:
+                idx = df.index[df["date"] == obs_dt][0]
+                df.at[idx, "temp_c"] = payload.actual_temp_c
+                df.at[idx, "is_sensor_reading"] = True
+                if "temp_c_api" in df.columns and pd.notna(df.at[idx, "temp_c_api"]):
+                    df.at[idx, "api_bias"] = payload.actual_temp_c - df.at[idx, "temp_c_api"]
+                    bias_updated = True
+            else:
+                new_row = pd.DataFrame([{
+                    "date": obs_dt,
+                    "temp_c": payload.actual_temp_c,
+                    "is_sensor_reading": True,
+                    "gap_filled": False,
+                }])
+                df = pd.concat([df, new_row], ignore_index=True)
+                df = df.sort_values("date").reset_index(drop=True)
 
-        df.to_csv(PROCESSED_PATH, index=False)
-        # Mirror into the parquet store that training and ModelManager
-        # read via load_processed(); never fail the receipt over it.
-        try:
-            parquet_path = (
-                PROCESSED_PATH.parent.parent / "processed" / "daily_merged.parquet"
-            )
-            parquet_path.parent.mkdir(parents=True, exist_ok=True)
-            df.to_parquet(parquet_path, index=False)
-        except Exception as mirror_exc:
-            print(f"[feedback] parquet mirror skipped: {mirror_exc}")
+            _write_csv_atomically(df, PROCESSED_PATH)
+            # Mirror into the parquet store that training and ModelManager
+            # read via load_processed(); never fail the receipt over it.
+            try:
+                parquet_path = (
+                    PROCESSED_PATH.parent.parent / "processed" / "daily_merged.parquet"
+                )
+                parquet_path.parent.mkdir(parents=True, exist_ok=True)
+                df.to_parquet(parquet_path, index=False)
+            except Exception as mirror_exc:
+                print(f"[feedback] parquet mirror skipped: {mirror_exc}")
     except Exception as e:
         print(f"[feedback] Error persisting observation: {e}")
         raise HTTPException(status_code=503, detail="Observation could not be recorded; please retry") from e
