@@ -7,14 +7,16 @@ Endpoints:
     GET  /api/sensor/history   - Get sensor reading history
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone, tzinfo
+from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from src.data.baseline_collector import store_actual, _DB_PATH, init_database
+from src.data.baseline_collector import store_actual, _DB_PATH, _load_config, init_database
 
 router = APIRouter()
 
@@ -36,6 +38,28 @@ class ReadingsResponse(BaseModel):
     message: str
 
 
+@lru_cache(maxsize=1)
+def _comparison_target() -> tuple[tzinfo, int]:
+    """Return the configured local comparison timezone and target hour."""
+    try:
+        config = _load_config()
+        timezone_name = config.get("location", {}).get("timezone", "UTC")
+        target_hour = int(config.get("data", {}).get("target_hour", 21))
+        return ZoneInfo(timezone_name), target_hour
+    except Exception:
+        return timezone.utc, 21
+
+
+def _local_comparison_time(timestamp: str) -> datetime:
+    """Parse an upload timestamp and place it in the site's comparison day."""
+    parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    site_timezone, _ = _comparison_target()
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        # Older producers sent naive local sensor times; keep that contract.
+        return parsed.replace(tzinfo=site_timezone)
+    return parsed.astimezone(site_timezone)
+
+
 @router.post("/readings", response_model=ReadingsResponse)
 def upload_readings(batch: ReadingsBatch):
     """
@@ -55,18 +79,19 @@ def upload_readings(batch: ReadingsBatch):
     
     for reading in batch.readings:
         try:
-            ts = datetime.fromisoformat(reading.timestamp.replace("Z", "+00:00"))
+            ts = _local_comparison_time(reading.timestamp)
         except ValueError:
             rejected += 1
             continue
         
+        _, target_hour = _comparison_target()
         reading_date = ts.date()
         hour = ts.hour
         
-        if 20 <= hour <= 22:
+        if target_hour - 1 <= hour <= target_hour + 1:
             # Cache each winning distance; do not reparse its timestamp for
             # every new candidate in the batch.
-            distance = abs((hour - 21) * 3600 + ts.minute * 60 + ts.second + ts.microsecond / 1_000_000)
+            distance = abs((hour - target_hour) * 3600 + ts.minute * 60 + ts.second + ts.microsecond / 1_000_000)
             if reading_date not in readings_by_date or distance < distance_by_date[reading_date]:
                 readings_by_date[reading_date] = reading
                 distance_by_date[reading_date] = distance
