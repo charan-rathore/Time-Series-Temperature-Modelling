@@ -74,9 +74,34 @@ def _lgbm_registry(tmp_path, artifacts=None):
     )
 
 
+def _served_model_name():
+    """The model the manager would actually serve right now, picked by
+    held-out RMSE from models/results.json. Retraining can flip it."""
+    return app.state.model_manager.get_best_model_name()
+
+
+def _served_registry(tmp_path, artifacts=None):
+    """Registry fixture for whichever model serves today: same shape as
+    _lgbm_registry, but bound to the served model's real load-time artifact
+    identity, so the provenance contract is tested against the live pick."""
+    model = _served_model_name()
+    return _write_registry(
+        tmp_path,
+        {model: f"{model}-test"},
+        [{
+            "model": model,
+            "version": f"{model}-test",
+            "created_at": "2026-10-20T15:35:25+00:00",
+            "data_range": "2024-06-01 to 2026-10-19",
+            "artifacts": artifacts if artifacts is not None else _real_artifacts(model),
+        }],
+    )
+
+
 def test_trained_forecast_carries_training_window(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(forecast_route, "REGISTRY_PATH", _lgbm_registry(tmp_path))
+    monkeypatch.setattr(forecast_route, "REGISTRY_PATH", _served_registry(tmp_path))
     data = client.get("/api/forecast?days=1").json()
+    assert data["model_used"] == _served_model_name()
     assert data["model_used"] not in forecast_route._UNTRAINED_MODELS
     assert data["trained_data_range"] == "2024-06-01 to 2026-10-19"
     assert data["model_trained_at"] == "2026-10-20T15:35:25+00:00"
@@ -103,24 +128,27 @@ def test_untrained_mode_never_claims_provenance(client, tmp_path, monkeypatch):
 
 
 def test_later_unrelated_record_does_not_hijack_provenance(client, tmp_path, monkeypatch):
-    """Served lgbm must not inherit a later sarima record's window (versions[-1] bug)."""
+    """The served model must not inherit a later other-model record's window
+    (versions[-1] bug), whatever model currently serves."""
+    served = _served_model_name()
+    other = "sarima" if served != "sarima" else "lgbm"
     path = _write_registry(
         tmp_path,
-        {"lgbm": "lgbm-test"},
+        {served: f"{served}-test"},
         [
             {
-                "model": "lgbm",
-                "version": "lgbm-test",
+                "model": served,
+                "version": f"{served}-test",
                 "created_at": "2026-10-20T15:35:25+00:00",
                 "data_range": "2024-06-01 to 2026-10-19",
-                "artifacts": _real_artifacts("lgbm"),
+                "artifacts": _real_artifacts(served),
             },
             {
-                "model": "sarima",
-                "version": "sarima-later",
+                "model": other,
+                "version": f"{other}-later",
                 "created_at": "2091-01-01T00:00:00+00:00",
                 "data_range": "2090-01-01 to 2090-12-31",
-                "artifacts": {"sarima.pkl": "deadbeefdeadbeef"},
+                "artifacts": {f"{other}.pkl": "deadbeefdeadbeef"},
             },
         ],
     )
@@ -130,6 +158,50 @@ def test_later_unrelated_record_does_not_hijack_provenance(client, tmp_path, mon
     assert data["model_trained_at"] == "2026-10-20T15:35:25+00:00"
     assert "2090" not in (data["trained_data_range"] or "")
     assert "2091" not in (data["model_trained_at"] or "")
+
+
+def test_provenance_binds_to_whichever_model_serves(client, tmp_path, monkeypatch):
+    """A retrain can flip the served model (measured holdout RMSE decides).
+    Provenance must come from the record of the model actually serving,
+    verified by its own load-time artifact hashes."""
+    served = _served_model_name()
+    other = "sarima" if served != "sarima" else "lgbm"
+    path = _write_registry(
+        tmp_path,
+        {served: f"{served}-new", other: f"{other}-old"},
+        [
+            {
+                "model": other,
+                "version": f"{other}-old",
+                "created_at": "2026-09-01T00:00:00+00:00",
+                "data_range": "2024-06-01 to 2026-08-31",
+                "artifacts": _real_artifacts(other),
+            },
+            {
+                "model": served,
+                "version": f"{served}-new",
+                "created_at": "2026-11-20T00:00:00+00:00",
+                "data_range": "2024-06-01 to 2026-11-20",
+                "artifacts": _real_artifacts(served),
+            },
+        ],
+    )
+    monkeypatch.setattr(forecast_route, "REGISTRY_PATH", path)
+    data = client.get("/api/forecast?days=1").json()
+    assert data["model_used"] == served
+    assert data["trained_data_range"] == "2024-06-01 to 2026-11-20"
+    assert data["model_trained_at"] == "2026-11-20T00:00:00+00:00"
+
+
+def test_served_model_hash_mismatch_means_unknown(client, tmp_path, monkeypatch):
+    """Retrained artifacts without a matching registry record (hash
+    mismatch) must report no provenance, for whichever model serves."""
+    served = _served_model_name()
+    bogus = {n: "0000000000000000" for n in _real_artifacts(served)}
+    monkeypatch.setattr(forecast_route, "REGISTRY_PATH", _served_registry(tmp_path, artifacts=bogus))
+    data = client.get("/api/forecast?days=1").json()
+    assert data["trained_data_range"] is None
+    assert data["model_trained_at"] is None
 
 
 def test_replaced_or_stale_artifact_means_unknown(client, tmp_path, monkeypatch):
@@ -300,3 +372,51 @@ def test_horizon_fallback_carries_per_point_provenance(client, tmp_path, monkeyp
     assert day2["model_used"] == "sarima"
     assert day2["trained_data_range"] == "sarima-range"
     assert day2["model_trained_at"] == "2026-09-01T00:00:00+00:00"
+
+
+def test_forced_served_selection_binds_to_that_models_record(client, tmp_path, monkeypatch):
+    """The root bug was a served-model flip breaking provenance. Exercise BOTH
+    serving choices explicitly: for each forced pick, provenance must come
+    from that model's own record (real load-time hashes), and the other
+    model's record alone must leave provenance unknown."""
+    manager = app.state.model_manager
+    ranges = {"sarima": "2024-06-01 to 2026-11-20", "lgbm": "2024-06-01 to 2026-10-19"}
+    for forced in ("sarima", "lgbm"):
+        other = "lgbm" if forced == "sarima" else "sarima"
+        monkeypatch.setattr(manager, "get_best_model_name", lambda forced=forced: forced)
+
+        (tmp_path / forced).mkdir()
+        both = _write_registry(
+            tmp_path / forced,
+            {forced: f"{forced}-new", other: f"{other}-old"},
+            [
+                {"model": other, "version": f"{other}-old",
+                 "created_at": "2026-09-01T00:00:00+00:00",
+                 "data_range": "2024-06-01 to 2026-08-31",
+                 "artifacts": _real_artifacts(other)},
+                {"model": forced, "version": f"{forced}-new",
+                 "created_at": "2026-11-20T00:00:00+00:00",
+                 "data_range": ranges[forced],
+                 "artifacts": _real_artifacts(forced)},
+            ],
+        )
+        monkeypatch.setattr(forecast_route, "REGISTRY_PATH", both)
+        data = client.get("/api/forecast?days=1").json()
+        assert data["model_used"] == forced
+        assert data["trained_data_range"] == ranges[forced]
+        assert data["model_trained_at"] == "2026-11-20T00:00:00+00:00"
+
+        (tmp_path / f"{forced}-only-other").mkdir()
+        only_other = _write_registry(
+            tmp_path / f"{forced}-only-other",
+            {other: f"{other}-old"},
+            [{"model": other, "version": f"{other}-old",
+              "created_at": "2026-09-01T00:00:00+00:00",
+              "data_range": "2024-06-01 to 2026-08-31",
+              "artifacts": _real_artifacts(other)}],
+        )
+        monkeypatch.setattr(forecast_route, "REGISTRY_PATH", only_other)
+        data = client.get("/api/forecast?days=1").json()
+        assert data["model_used"] == forced
+        assert data["trained_data_range"] is None
+        assert data["model_trained_at"] is None

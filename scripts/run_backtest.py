@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Run the rolling-origin backtest on the committed feature matrix and write
-models/backtest.json. Baselines always run; LightGBM runs when installed."""
+models/backtest.json. Baselines always run; SARIMA and LightGBM run when installed."""
 import json
 import sys
 from pathlib import Path
@@ -12,7 +12,8 @@ import yaml
 
 from src.data.preprocess import load_processed, processed_source_path
 from src.evaluation.backtest import (BASELINES, backtest_errors, lgbm_forecaster,
-                                     rolling_origin_folds, run_backtest)
+                                     rolling_origin_folds, run_backtest,
+                                     sarima_forecaster)
 from src.evaluation.conformal import conformal_halfwidth, walk_forward_coverage
 from src.features.engineer import build_feature_matrix
 
@@ -21,6 +22,11 @@ def main() -> int:
     config = yaml.safe_load(open(ROOT / "config" / "config.yaml"))
     df = build_feature_matrix(load_processed(), drop_na=True)
     forecasters = dict(BASELINES)
+    try:
+        import pmdarima  # noqa: F401
+        forecasters["sarima"] = sarima_forecaster(config["models"]["sarima"])
+    except Exception as exc:
+        print(f"[backtest] sarima skipped: {exc}")
     try:
         import lightgbm  # noqa: F401
         forecasters["lgbm"] = lgbm_forecaster(config["models"]["lgbm"])

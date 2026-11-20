@@ -181,3 +181,62 @@ def test_ensemble_scores_each_horizon_on_n_minus_h_days(tm, monkeypatch):
     n = len(test_df)
     for h in (1, 2, 3):
         assert res[f"day{h}"]["n_observations"] == n - h
+
+
+def test_origin_available_exog_never_reads_after_origin(tm):
+    """The helper must return the last h observed exog rows through origin t,
+    padding by repeating the earliest row when history is short - never any
+    row after t."""
+    exog = np.arange(50, dtype=float).reshape(25, 2)
+    h = 3
+    block = tm._origin_available_exog(exog, t=7, h=h)
+    assert block.shape == (h, 2)
+    np.testing.assert_array_equal(block, exog[5:8])  # rows t-h+1..t
+
+    short = tm._origin_available_exog(exog, t=1, h=h)  # only rows 0..1 observed
+    assert short.shape == (h, 2)
+    np.testing.assert_array_equal(short[0], exog[0])  # padded with earliest row
+    np.testing.assert_array_equal(short[1:], exog[0:2])
+
+    poisoned = exog.copy()
+    poisoned[8:] = -999.0  # anything after the origin must be irrelevant
+    np.testing.assert_array_equal(tm._origin_available_exog(poisoned, t=7, h=h), exog[5:8])
+
+    assert tm._origin_available_exog(None, t=7, h=h) is None
+
+
+def test_rolling_sarima_forecasts_ignores_future_exogenous(tm, monkeypatch):
+    """The training evaluation's SARIMA path must not read observed future
+    exog either: poisoning exog after origin 0 cannot move the forecast
+    issued at origin 0. Fit is made exog-honest by a test-only shim."""
+    pmdarima = pytest.importorskip("pmdarima")
+    import src.models.sarima_model as sm
+
+    original = sm.pm.auto_arima
+    monkeypatch.setattr(
+        sm.pm, "auto_arima",
+        lambda y, exogenous=None, **kw: original(y, X=exogenous, **kw),
+    )
+
+    rng = np.random.default_rng(3)
+    days = 230
+    hum = 60 + 10 * rng.normal(0, 1, days)
+    prs = 1013 + 3 * rng.normal(0, 1, days)
+    temp = 0.4 * hum - 0.1 * prs + 120.0 + rng.normal(0, 0.5, days)
+    df = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=days),
+        "temp_c": temp, "humidity_pct": hum, "pressure_hpa": prs,
+    })
+    config = {"seasonal": True, "m": 7, "information_criterion": "aic", "stepwise": True}
+    model = sm.SARIMAXModel(config)
+    model.fit(df.iloc[:200])
+    assert model.model.arima_res_.model.exog is not None  # shim really flowed
+
+    test_df = df.iloc[200:]
+    h = 2
+    base = tm.rolling_sarima_forecasts(model, test_df, [h])[h][0][h]  # origin 0 -> row h
+    poisoned = test_df.copy()
+    poisoned.loc[poisoned.index[1]:, "humidity_pct"] += 50.0
+    poisoned.loc[poisoned.index[1]:, "pressure_hpa"] -= 60.0
+    alt = tm.rolling_sarima_forecasts(model, poisoned, [h])[h][0][h]
+    assert base == pytest.approx(alt, abs=1e-9)

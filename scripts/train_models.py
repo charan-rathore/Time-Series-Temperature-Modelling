@@ -93,6 +93,24 @@ def prepare_data(config: dict) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame
     return train_df, val_df, test_df
 
 
+def _origin_available_exog(exog, t: int, h: int):
+    """Exogenous block for predicting t+1..t+h using only information through origin t.
+
+    Mirrors serving, which passes features.tail(horizon): the last h observed
+    exogenous rows stand in for the unknown future values (a last-h-history
+    block proxy). Never uses exog rows after t. Pads by repeating the fold's
+    first observed row when the history through t is shorter than h (not the
+    preceding training history, which serving with a longer history would
+    have - origin-safe, but not numerically identical).
+    """
+    if exog is None:
+        return None
+    block = exog[max(0, t + 1 - h): t + 1]
+    if len(block) < h:
+        block = np.vstack([np.repeat(block[:1], h - len(block), axis=0), block])
+    return block
+
+
 def rolling_sarima_forecasts(
     model: SARIMAXModel,
     test_df: pd.DataFrame,
@@ -103,8 +121,12 @@ def rolling_sarima_forecasts(
     The forecast for target day d at horizon h is made from the history up to
     and including day d - h, which is the serving situation and the same
     pairing as LightGBM (row t predicts day t + h). After each origin the
-    actual observation is fed to a copy of the fitted model, so the saved
-    model is not touched. Returns {h: (pred, lower, upper)}, each an array
+    actual observation is fed to a copy of the fitted model (pmdarima's
+    update() absorbs the observation and incrementally re-estimates
+    parameters; the model order and the initial fit on the training window
+    are not redone), so the saved model is not touched. Future exogenous
+    values are unknown at the origin, so the last h observed exogenous rows
+    are used instead (a last-h-history block), matching serving. Returns {h: (pred, lower, upper)}, each an array
     over the test days with NaN for the first h days, so n = len(test) - h
     observations are scored per horizon (the old score used n = 1).
     """
@@ -121,7 +143,7 @@ def rolling_sarima_forecasts(
                 continue
             fc, ci = fitted.predict(
                 n_periods=h,
-                X=exog[t + 1:t + 1 + h] if exog is not None else None,
+                X=_origin_available_exog(exog, t, h),
                 return_conf_int=True,
                 alpha=0.2,
             )

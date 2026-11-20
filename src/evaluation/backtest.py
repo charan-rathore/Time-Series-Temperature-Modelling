@@ -105,6 +105,76 @@ def lgbm_forecaster(config: dict) -> Forecaster:
     return run
 
 
+def sarima_forecaster(config: dict) -> Forecaster:
+    """SARIMA wrapped to the forecaster contract (imports pmdarima lazily).
+
+    Fits once per fold (auto-ARIMA on the fold's training window only, the
+    same fit scripts/train_models.py uses), then scores exactly like the
+    training evaluation's rolling_sarima_forecasts: after each origin the
+    fold's actual observation is fed to a copy of the fitted model
+    (pmdarima's update() absorbs the observation and incrementally
+    re-estimates parameters; the auto-ARIMA order and the initial per-fold
+    fit are not redone), and the forecast for fold row ``i + h`` is made
+    from history ending at row ``i``. Future exogenous values are unknown
+    at the origin, so the last h observed exogenous rows stand in for them
+    (a last-h-history block, the same proxy serving uses via
+    features.tail(horizon)); short fold starts pad with the fold's first
+    observed row rather than reaching back into training history. The per-fold fit is cached because
+    callers invoke the forecaster once per horizon over identical folds;
+    the fold's own rows never steer the fit. The cache key is the training
+    window's content identity (length plus a hash of every column the fit
+    consumes) and the full config, so a same-length but different training
+    window can never silently reuse a fit.
+    """
+    import hashlib
+
+    exog_cols = config.get("exog_cols", ["humidity_pct", "pressure_hpa"])
+    config_key = tuple(sorted((str(k), str(v)) for k, v in config.items()))
+    fitted_by_train_key: Dict[tuple, object] = {}
+
+    def train_key(train_df: pd.DataFrame) -> tuple:
+        consumed = [TARGET] + [c for c in exog_cols if c in train_df.columns]
+        digest = hashlib.sha256(
+            np.ascontiguousarray(train_df[consumed].to_numpy(dtype=float)).tobytes()
+        ).hexdigest()
+        return (len(train_df), digest, config_key)
+
+    def run(train_df: pd.DataFrame, fold_df: pd.DataFrame, h: int) -> np.ndarray:
+        import copy
+
+        from src.models.sarima_model import SARIMAXModel
+
+        key = train_key(train_df)
+        model = fitted_by_train_key.get(key)
+        if model is None:
+            model = SARIMAXModel(config)
+            model.fit(train_df)  # auto-ARIMA on training rows only
+            fitted_by_train_key[key] = model
+
+        fitted = copy.deepcopy(model.model)
+        exog = model._get_exog(fold_df)
+        y = fold_df[TARGET].to_numpy(dtype=float)
+        n = len(y)
+        preds = np.full(n, np.nan)
+        for t in range(n):
+            fitted.update(y[t:t + 1], X=exog[t:t + 1] if exog is not None else None)
+            if t + h >= n:
+                continue
+            future_exog = None
+            if exog is not None:
+                # Origin-available only: the last h observed exog rows stand in
+                # for the unknown future values (last-h-history block), exactly
+                # like serving's features.tail(horizon).
+                block = exog[max(0, t + 1 - h): t + 1]
+                if len(block) < h:
+                    block = np.vstack([np.repeat(block[:1], h - len(block), axis=0), block])
+                future_exog = block
+            fc = fitted.predict(n_periods=h, X=future_exog)
+            preds[t + h] = fc[-1]
+        return np.asarray(preds[h:], dtype=float)
+    return run
+
+
 # ── scoring ──────────────────────────────────────────────────────────────────
 
 def _rmse(a: np.ndarray, p: np.ndarray) -> float:
