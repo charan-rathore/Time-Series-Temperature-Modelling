@@ -1,6 +1,7 @@
 {
   "champions": {
-    "lgbm": "lgbm-2a9b446608e8"
+    "lgbm": "lgbm-df3f5d9ea4b4",
+    "sarima": "sarima-b54c208ca2c2"
   },
   "versions": [
     {
@@ -19,6 +20,38 @@
       "git_sha": "8976eb4",
       "model": "lgbm",
       "version": "lgbm-2a9b446608e8"
+    },
+    {
+      "artifacts": {
+        "lgbm_h1.pkl": "2cf4a7032a1da373",
+        "lgbm_h2.pkl": "d1e8160c1797c067",
+        "lgbm_h3.pkl": "f5d019a84b59f9cb"
+      },
+      "backtest_day1": {
+        "n_observations": 174,
+        "rmse": 1.2503802292045059
+      },
+      "created_at": "2026-11-20T22:52:40.585633+00:00",
+      "data_hash": "03bfb1689bc972fa",
+      "data_range": "2024-06-01 to 2026-11-20",
+      "git_sha": "dce2bd1",
+      "model": "lgbm",
+      "version": "lgbm-df3f5d9ea4b4"
+    },
+    {
+      "artifacts": {
+        "sarima.pkl": "7f9fa55e6cde850b"
+      },
+      "backtest_day1": {
+        "n_observations": 174,
+        "rmse": 1.186854765061209
+      },
+      "created_at": "2026-11-20T22:57:25.293401+00:00",
+      "data_hash": "03bfb1689bc972fa",
+      "data_range": "2024-06-01 to 2026-11-20",
+      "git_sha": "dce2bd1",
+      "model": "sarima",
+      "version": "sarima-b54c208ca2c2"
     }
   ]
 }

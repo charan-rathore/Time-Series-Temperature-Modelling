@@ -2,60 +2,60 @@
   "sarima": {
     "day1": {
       "n_observations": 29,
-      "mae": 1.0092071390026232,
-      "rmse": 1.2727725366980294,
-      "mape": 4.473576382593892,
-      "skill_score": -0.19229700823437534,
+      "mae": 0.9056909588447867,
+      "rmse": 1.1260281207672047,
+      "mape": 4.04651876789989,
+      "skill_score": -0.023656898271266602,
       "skill_score_status": "available",
       "mape_status": "available",
-      "coverage_90pct": 0.7586206896551724
+      "coverage_90pct": 0.6896551724137931
     },
     "day2": {
       "n_observations": 28,
-      "mae": 1.0578249355918599,
-      "rmse": 1.2645205447786028,
-      "mape": 4.678092514455306,
-      "skill_score": -0.164771901566656,
+      "mae": 0.9715490584381493,
+      "rmse": 1.2542118875927084,
+      "mape": 4.308451868380258,
+      "skill_score": -0.12146368287715403,
       "skill_score_status": "available",
       "mape_status": "available",
       "coverage_90pct": 0.7857142857142857
     },
     "day3": {
       "n_observations": 27,
-      "mae": 1.1678227983562657,
-      "rmse": 1.3870660043194951,
-      "mape": 5.182906487287857,
-      "skill_score": -0.2613623979535553,
+      "mae": 1.0677704330773983,
+      "rmse": 1.3745824438599505,
+      "mape": 4.730314995237244,
+      "skill_score": -0.2195141890069945,
       "skill_score_status": "available",
       "mape_status": "available",
-      "coverage_90pct": 0.7407407407407407
+      "coverage_90pct": 0.7777777777777778
     }
   },
   "lgbm": {
     "day1": {
       "n_observations": 29,
-      "mae": 0.9860476012690496,
-      "rmse": 1.1954980327126266,
-      "mape": 4.3126841537331435,
-      "skill_score": -0.11990845705333242,
+      "mae": 0.9778445871258532,
+      "rmse": 1.1435868419287911,
+      "mape": 4.420825570020666,
+      "skill_score": -0.03961929362390948,
       "skill_score_status": "available",
       "mape_status": "available"
     },
     "day2": {
       "n_observations": 28,
-      "mae": 1.0807095190354956,
-      "rmse": 1.2279085217391912,
-      "mape": 4.722950892089815,
-      "skill_score": -0.13104792936873166,
+      "mae": 1.0323980066094767,
+      "rmse": 1.1861580352869485,
+      "mape": 4.650904540148129,
+      "skill_score": -0.060612781529630455,
       "skill_score_status": "available",
       "mape_status": "available"
     },
     "day3": {
       "n_observations": 27,
-      "mae": 1.0390344963808091,
-      "rmse": 1.2041147350090524,
-      "mape": 4.533216652545109,
-      "skill_score": -0.09499118631155201,
+      "mae": 1.0918539143241595,
+      "rmse": 1.2356480540134687,
+      "mape": 4.934043973805219,
+      "skill_score": -0.09625315034347692,
       "skill_score_status": "available",
       "mape_status": "available"
     }
@@ -63,28 +63,28 @@
   "ensemble": {
     "day1": {
       "n_observations": 29,
-      "mae": 0.9296490805744587,
-      "rmse": 1.2433574044796933,
-      "mape": 4.173438203953064,
-      "skill_score": -0.16474175139977443,
+      "mae": 1.1629229793490667,
+      "rmse": 1.3276722713877458,
+      "mape": 5.306499863875852,
+      "skill_score": -0.2069688617754546,
       "skill_score_status": "available",
       "mape_status": "available"
     },
     "day2": {
       "n_observations": 28,
-      "mae": 1.078364490916958,
-      "rmse": 1.475176428243822,
-      "mape": 4.872553149136606,
-      "skill_score": -0.3588107054225056,
+      "mae": 1.1599142800561377,
+      "rmse": 1.3017823212564468,
+      "mape": 5.273248971727279,
+      "skill_score": -0.16399917011049125,
       "skill_score_status": "available",
       "mape_status": "available"
     },
     "day3": {
       "n_observations": 27,
-      "mae": 1.4205991741763955,
-      "rmse": 1.8141248569002986,
-      "mape": 6.412058816884664,
-      "skill_score": -0.6497188111891998,
+      "mae": 1.1372206925399932,
+      "rmse": 1.2817334057652254,
+      "mape": 5.16060090472387,
+      "skill_score": -0.13713955960738855,
       "skill_score_status": "available",
       "mape_status": "available"
     }
