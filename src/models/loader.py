@@ -252,26 +252,25 @@ class ModelManager:
                         s_preds = self.sarima.predict(steps=horizon, future_df=features.tail(horizon))
                         base_preds["sarima"] = s_preds[-1:]
                     except Exception:
-                        base_preds["sarima"] = np.array([features["temp_c"].mean()])
+                        pass
 
                 if horizon in self.lgbm_models:
                     try:
                         l_preds = self.lgbm_models[horizon].predict(steps=1, future_df=features.tail(1))
                         base_preds["lgbm"] = l_preds
                     except Exception:
-                        base_preds["lgbm"] = np.array([features["temp_c"].mean()])
+                        pass
 
                 if self.tft and self.tft.is_fitted:
                     try:
                         tft_result = self.tft.predict_intervals(steps=horizon, future_df=features)
                         base_preds["tft"] = np.array([float(tft_result["median"][horizon - 1])])
                     except Exception:
-                        base_preds["tft"] = np.array([features["temp_c"].mean()])
+                        pass
 
-                if base_preds:
-                    for name in self.ensemble.base_model_names:
-                        if name not in base_preds:
-                            base_preds[name] = np.array([features["temp_c"].mean()])
+                # A loaded base can still fail or lack this horizon. Never
+                # feed an invented mean to a stacker trained on real outputs.
+                if all(name in base_preds for name in self.ensemble.base_model_names):
                     try:
                         ens_pred = self.ensemble.predict(steps=1, base_predictions=base_preds, start_horizon=horizon)
                         pred = float(ens_pred[0])
