@@ -71,7 +71,7 @@ def _artifacts_match(version: dict, loaded_hashes: dict) -> bool:
     training time. Anything else - replaced file, stale registry, a record
     that never tracked this artifact - means the binding is unverified."""
     recorded = version.get("artifacts") or {}
-    if not loaded_hashes:
+    if not isinstance(recorded, dict) or not loaded_hashes:
         return False
     for name, actual in loaded_hashes.items():
         if recorded.get(name) != actual:
@@ -97,15 +97,23 @@ def _training_provenance(model_name: str, loaded_hashes: Optional[dict]) -> tupl
         registry = json.loads(REGISTRY_PATH.read_text())
     except Exception:
         return None, None
-    versions = [v for v in (registry.get("versions") or []) if isinstance(v, dict)]
-    candidates = [v for v in versions if v.get("model") == model_name]
-    champion = (registry.get("champions") or {}).get(model_name)
+    if not isinstance(registry, dict):
+        return None, None
+    versions = registry.get("versions", [])
+    champions = registry.get("champions", {})
+    if not isinstance(versions, list) or not isinstance(champions, dict):
+        return None, None
+    candidates = [v for v in versions if isinstance(v, dict) and v.get("model") == model_name]
+    champion = champions.get(model_name)
     if champion:
         candidates = [v for v in candidates if v.get("version") == champion]
     verified = [v for v in candidates if _artifacts_match(v, loaded_hashes)]
     if len(verified) != 1:
         return None, None
-    return verified[0].get("data_range"), verified[0].get("created_at")
+    data_range, created_at = verified[0].get("data_range"), verified[0].get("created_at")
+    if any(value is not None and not isinstance(value, str) for value in (data_range, created_at)):
+        return None, None
+    return data_range, created_at
 
 
 class ForecastPoint(BaseModel):
