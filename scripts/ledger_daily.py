@@ -39,6 +39,9 @@ from src.evaluation.ledger import (  # noqa: E402
     OBS_SOURCE,
     TARGET,
     LedgerError,
+    LedgerCommitUncertainError,
+    LedgerRecoveryError,
+    LedgerWriteError,
     append,
     current_observations,
     read,
@@ -164,6 +167,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             append(rec, args.ledger)
             print("appended", rec["kind"], rec["source"], label, rec["value"])
+        except (LedgerCommitUncertainError, LedgerRecoveryError) as exc:
+            print("LEDGER OUTCOME UNCERTAIN; stopped; inspect before retrying:", exc)
+            return 1
+        except LedgerWriteError as exc:
+            print("LEDGER WRITE FAILED; prior prefix restored; stopped:", exc)
+            return 1
         except LedgerError as exc:
             print("refused", rec["kind"], rec["source"], label, "-", exc)
     return 0

@@ -5,6 +5,14 @@ before its target day, never edited afterwards, and scored against the same
 quantity it predicted. The SQLite baseline table allows UPDATE and DELETE and
 overwrites actuals in place; this ledger does not.
 
+Runtime contract: cooperating processes on one local POSIX filesystem, with
+exclusive ownership of the ledger pathname. Do not rotate, replace, restore,
+unlink, or modify that path while readers/writers are active. Inode checks
+detect observed replacement, but cannot make noncooperating tools atomic.
+Parent directories must already be durable. File and parent-directory fsync
+cover normal appends, not crash recovery after an interrupted partial write.
+An uncertain-commit or recovery error requires inspection before any retry.
+
 Format: one JSON object per line (JSONL), committed to git. Each record
 carries `prev` (the previous record's hash) and `hash` =
 sha256(prev + canonical JSON of the record without `hash`). Editing,
@@ -24,6 +32,7 @@ closest to 21:00 IST. Daily-mean forecasts are not scored against it.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import math
@@ -45,6 +54,43 @@ class LedgerError(ValueError):
     pass
 
 
+class LedgerWriteError(LedgerError):
+    """The storage write failed, and the prior ledger prefix was restored."""
+
+
+class LedgerCommitUncertainError(LedgerError):
+    """The record was written, but durable completion could not be confirmed."""
+
+
+class LedgerRecoveryError(LedgerError):
+    """A failed append could not establish a durable rollback."""
+
+    def __init__(self, write_error: BaseException, recovery_error: BaseException):
+        super().__init__("append failed and recovery could not be confirmed; stop writes and inspect the ledger")
+        self.write_error = write_error
+        self.recovery_error = recovery_error
+
+
+def _check_path(fd: int, path: Path) -> None:
+    """Detect replacement while open; external writers must keep the inode stable."""
+    try:
+        current = path.stat()
+    except FileNotFoundError as exc:
+        raise LedgerError("ledger pathname was removed or replaced while open") from exc
+    opened = os.fstat(fd)
+    if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
+        raise LedgerError("ledger pathname was replaced while open")
+
+
+def _sync_directory(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+
 def _canonical(rec: Dict[str, Any]) -> str:
     body = {k: v for k, v in rec.items() if k != "hash"}
     return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -54,18 +100,28 @@ def _hash(prev: str, rec: Dict[str, Any]) -> str:
     return hashlib.sha256((prev + _canonical(rec)).encode("utf-8")).hexdigest()
 
 
-def read(path: Path = LEDGER_PATH) -> List[Dict[str, Any]]:
-    if not path.exists():
-        return []
+def _read_records(stream) -> List[Dict[str, Any]]:
     out = []
-    with open(path, encoding="utf-8") as f:
-        for n, line in enumerate(f, 1):
-            if line.strip():
-                try:
-                    out.append(json.loads(line))
-                except json.JSONDecodeError as exc:
-                    raise LedgerError(f"line {n}: not JSON ({exc})") from exc
+    for n, line in enumerate(stream, 1):
+        if line.strip():
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                raise LedgerError(f"line {n}: not JSON ({exc})") from exc
     return out
+
+
+def read(path: Path = LEDGER_PATH) -> List[Dict[str, Any]]:
+    try:
+        stream = open(path, encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    with stream:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_SH)
+        _check_path(stream.fileno(), path)
+        records = _read_records(stream)
+        _check_path(stream.fileno(), path)
+        return records
 
 
 def _utc(ts: str) -> datetime:
@@ -84,61 +140,141 @@ def _forecast_key(r: Dict[str, Any]) -> Tuple:
     return (r["source"], r["target"], r["target_date"], int(r["horizon_days"]))
 
 
+class _ValidationState:
+    """Semantic indexes contain accepted records only, not invalid predecessors.
+
+    A rejected record still makes verification fail. Secondary diagnostics may
+    differ from a raw-prefix scan; they do not bless any already-invalid ledger.
+    State is rebuilt per scan and never trusted across calls.
+    """
+
+    def __init__(self):
+        self.last_issued = None
+        self.forecasts = set()
+        self.observations = {}
+        self.observation_keys = set()
+        self.superseded = set()
+
+    def check(self, rec: Dict[str, Any]) -> None:
+        if not isinstance(rec, dict):
+            raise LedgerError("record must be an object")
+        kind = rec.get("kind")
+        if kind not in ("forecast", "observation"):
+            raise LedgerError(f"unknown kind {kind!r}")
+        for field in ("source", "target", "issued_at"):
+            if not isinstance(rec.get(field), str) or not rec[field]:
+                raise LedgerError(f"{kind} needs {field} as a nonempty string")
+        value = rec.get("value")
+        try:
+            finite = math.isfinite(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else False
+        except OverflowError:
+            finite = False
+        if not finite:
+            raise LedgerError("value must be a finite number")
+        try:
+            issued = _utc(rec["issued_at"])
+            if self.last_issued is not None and issued < self.last_issued:
+                raise LedgerError("issued_at goes backwards; records are appended in time order")
+            if kind == "forecast":
+                horizon = rec.get("horizon_days")
+                if isinstance(horizon, bool) or not isinstance(horizon, int) or horizon < 1:
+                    raise LedgerError("forecast needs an integer horizon_days >= 1")
+                if issued >= target_day_start(rec["target_date"]):
+                    raise LedgerError("a forecast must be issued before its target day starts (IST)")
+                if (date.fromisoformat(rec["target_date"]) - issued.astimezone(IST).date()).days != horizon:
+                    raise LedgerError("horizon_days does not match issue day and target date (IST)")
+                key = _forecast_key(rec)
+                if key in self.forecasts:
+                    raise LedgerError(f"duplicate forecast {key}; first write wins")
+            else:
+                date.fromisoformat(rec["date"])
+                key = (rec["source"], rec["target"], rec["date"])
+                supersedes = rec.get("supersedes")
+                if supersedes is not None:
+                    if not isinstance(supersedes, str):
+                        raise LedgerError("supersedes must be a hash string")
+                    if supersedes in self.superseded:
+                        raise LedgerError("supersedes names an already superseded observation; correct the live record")
+                    old = self.observations.get(supersedes)
+                    if old is None or old != key:
+                        raise LedgerError("supersedes must name an earlier observation of the same source, target and date")
+                elif key in self.observation_keys:
+                    raise LedgerError("observation already recorded; correct it with a superseding record")
+        except (KeyError, TypeError, ValueError) as exc:
+            if isinstance(exc, LedgerError):
+                raise
+            raise LedgerError(f"invalid {kind} fields: {exc}") from exc
+
+    def add(self, rec: Dict[str, Any]) -> None:
+        self.last_issued = _utc(rec["issued_at"])
+        if rec["kind"] == "forecast":
+            self.forecasts.add(_forecast_key(rec))
+        else:
+            key = (rec["source"], rec["target"], rec["date"])
+            self.observation_keys.add(key)
+            hash_value = rec.get("hash")
+            if isinstance(hash_value, str):
+                self.observations[hash_value] = key
+            if rec.get("supersedes") is not None:
+                self.superseded.add(rec["supersedes"])
+
+
 def _check(rec: Dict[str, Any], prior: List[Dict[str, Any]]) -> None:
-    kind = rec.get("kind")
-    if kind not in ("forecast", "observation"):
-        raise LedgerError(f"unknown kind {kind!r}")
-    for f in ("source", "target", "value", "issued_at"):
-        if rec.get(f) in (None, ""):
-            raise LedgerError(f"{kind} needs {f}")
-    v = rec["value"]
-    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
-        raise LedgerError(f"value must be a finite number, got {v!r}")
-    issued = _utc(rec["issued_at"])
-    if prior and issued < _utc(prior[-1]["issued_at"]):
-        raise LedgerError("issued_at goes backwards; records are appended in time order")
-    if kind == "forecast":
-        h = rec.get("horizon_days")
-        if isinstance(h, bool) or not isinstance(h, int) or h < 1:
-            raise LedgerError("forecast needs an integer horizon_days >= 1")
-        if issued >= target_day_start(rec["target_date"]):
-            raise LedgerError("a forecast must be issued before its target day starts (IST)")
-        issue_day = issued.astimezone(IST).date()
-        if (date.fromisoformat(rec["target_date"]) - issue_day).days != h:
-            raise LedgerError("horizon_days does not match issue day and target date (IST)")
-        key = _forecast_key(rec)
-        if any(p["kind"] == "forecast" and _forecast_key(p) == key for p in prior):
-            raise LedgerError(f"duplicate forecast {key}; first write wins")
-    else:
-        date.fromisoformat(rec["date"])
-        sup = rec.get("supersedes")
-        live = {p["hash"]: p for p in prior if p["kind"] == "observation"}
-        if sup is not None:
-            old = live.get(sup)
-            if not old or (old["source"], old["target"], old["date"]) != (rec["source"], rec["target"], rec["date"]):
-                raise LedgerError("supersedes must name an earlier observation of the same source, target and date")
-        elif any(
-            (p["source"], p["target"], p["date"]) == (rec["source"], rec["target"], rec["date"])
-            for p in live.values()
-        ):
-            raise LedgerError("observation already recorded; correct it with a superseding record")
+    """Check a new record against a prefix already accepted by verify_records."""
+    state = _ValidationState()
+    for previous in prior:
+        state.add(previous)
+    state.check(rec)
 
 
 def append(rec: Dict[str, Any], path: Path = LEDGER_PATH) -> Dict[str, Any]:
     """Validate, chain and append one record. Returns the stored record."""
-    prior = read(path)
-    problems = verify_records(prior)
-    if problems:
-        raise LedgerError("ledger is already inconsistent: " + problems[0])
-    rec = {k: v for k, v in rec.items() if k not in ("prev", "hash")}
-    _check(rec, prior)
-    rec["prev"] = prior[-1]["hash"] if prior else GENESIS
-    rec["hash"] = _hash(rec["prev"], rec)
+    # All writers lock the same ledger inode, not a process-local mutex. Keep
+    # validation and hash assignment inside the lock so two processes cannot
+    # both accept the same identity or append from the same previous hash.
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o644)
     try:
-        os.write(fd, (json.dumps(rec, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"))
-        os.fsync(fd)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        _check_path(fd, path)
+        with os.fdopen(os.dup(fd), encoding="utf-8") as stream:
+            prior = _read_records(stream)
+        problems = verify_records(prior)
+        if problems:
+            raise LedgerError("ledger is already inconsistent: " + problems[0])
+        rec = {k: v for k, v in rec.items() if k not in ("prev", "hash")}
+        _check(rec, prior)
+        rec["prev"] = prior[-1]["hash"] if prior else GENESIS
+        rec["hash"] = _hash(rec["prev"], rec)
+        payload = (json.dumps(rec, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
+        original_size = os.fstat(fd).st_size
+        _check_path(fd, path)
+        try:
+            while payload:
+                written = os.write(fd, payload)
+                if not written:
+                    raise OSError("ledger write made no progress")
+                payload = payload[written:]
+            os.fsync(fd)
+        except BaseException as write_error:
+            try:
+                os.ftruncate(fd, original_size)
+                os.fsync(fd)
+            except BaseException as recovery_error:
+                raise LedgerRecoveryError(write_error, recovery_error) from write_error
+            if isinstance(write_error, OSError):
+                raise LedgerWriteError("ledger append failed; rollback completed") from write_error
+            raise
+        try:
+            _check_path(fd, path)
+        except (LedgerError, OSError) as exc:
+            raise LedgerCommitUncertainError("record written but ledger pathname could not be confirmed; inspect before retrying") from exc
+        # File fsync alone does not make a newly created directory entry durable.
+        # Failure here is an uncertain durable commit, not permission to retry.
+        try:
+            _sync_directory(path.parent)
+        except OSError as exc:
+            raise LedgerCommitUncertainError("record written but directory durability is unconfirmed; inspect before retrying") from exc
     finally:
         os.close(fd)
     return rec
@@ -147,16 +283,25 @@ def append(rec: Dict[str, Any], path: Path = LEDGER_PATH) -> Dict[str, Any]:
 def verify_records(records: List[Dict[str, Any]]) -> List[str]:
     problems: List[str] = []
     prev = GENESIS
+    state = _ValidationState()
     for i, rec in enumerate(records, 1):
+        if not isinstance(rec, dict):
+            problems.append(f"record {i}: record must be an object")
+            prev = ""
+            continue
         if rec.get("prev") != prev:
             problems.append(f"record {i}: chain broken (prev does not match record {i - 1})")
         elif rec.get("hash") != _hash(prev, rec):
             problems.append(f"record {i}: content changed after it was written (hash mismatch)")
         try:
-            _check(rec, records[: i - 1])
+            state.check(rec)
+            state.add(rec)
         except LedgerError as exc:
             problems.append(f"record {i}: {exc}")
         prev = rec.get("hash", "")
+        if not isinstance(prev, str):
+            problems.append(f"record {i}: hash must be a string")
+            prev = ""
     return problems
 
 
