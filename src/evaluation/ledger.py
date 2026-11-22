@@ -248,6 +248,19 @@ def append(rec: Dict[str, Any], path: Path = LEDGER_PATH) -> Dict[str, Any]:
         rec["hash"] = _hash(rec["prev"], rec)
         payload = (json.dumps(rec, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
         original_size = os.fstat(fd).st_size
+        # A valid JSON value at EOF need not have a newline, but appending
+        # another value there would corrupt its physical JSONL record. Blank
+        # trailing whitespace after a newline is safe; never rewrite old bytes.
+        boundary = original_size
+        while boundary:
+            start = max(0, boundary - 4096)
+            tail = os.pread(fd, boundary - start, start)
+            last_line = tail.rsplit(b"\n", 1)[-1]
+            if last_line.strip(b" \t\r"):
+                raise LedgerError("ledger final record needs a newline before appending; prefix unchanged")
+            if b"\n" in tail:
+                break
+            boundary = start
         _check_path(fd, path)
         try:
             while payload:
