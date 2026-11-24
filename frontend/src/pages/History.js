@@ -36,6 +36,7 @@ export default function History() {
   const [end, setEnd] = useState(getDefaultEnd);
 
   const requestVersion = useRef(0);
+  const loadedRange = useRef(null);
   const load = useCallback(async () => {
     const version = ++requestVersion.current;
     setLoading(true);
@@ -43,6 +44,7 @@ export default function History() {
     try {
       const res = await api.getHistory(start, end);
       if (version !== requestVersion.current) return;
+      loadedRange.current = { start, end };
       setData(res);
     } catch (e) {
       if (version !== requestVersion.current) return;
@@ -88,7 +90,7 @@ export default function History() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `thermosense_history_${start}_${end}.csv`;
+    a.download = `thermosense_history_${loadedRange.current.start}_${loadedRange.current.end}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
