@@ -82,8 +82,8 @@ export default function History() {
       "humidity_pct",
       "pressure_hpa",
     ];
-    const rows = chartData.map((r) =>
-      headers.map((h) => r[h === "temp_c" ? "temp" : h] ?? "").join(","),
+    const rows = data.records.map((r) =>
+      headers.map((h) => r[h === "temp_c" ? "actual_temp_c" : h] ?? "").join(","),
     );
     const csv = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
