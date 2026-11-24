@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { RefreshCw, Download, Info } from "lucide-react";
 import {
   LineChart,
@@ -35,21 +35,29 @@ export default function History() {
   const [start, setStart] = useState(getDefaultStart);
   const [end, setEnd] = useState(getDefaultEnd);
 
+  const requestVersion = useRef(0);
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setError(null);
     try {
       const res = await api.getHistory(start, end);
+      if (version !== requestVersion.current) return;
       setData(res);
     } catch (e) {
+      if (version !== requestVersion.current) return;
       setError(e.message);
       setData(null);
+    } finally {
+      if (version === requestVersion.current) setLoading(false);
     }
-    setLoading(false);
   }, [start, end]);
 
   useEffect(() => {
     load();
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load]);
 
   const chartData =
