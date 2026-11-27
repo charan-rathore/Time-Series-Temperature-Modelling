@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { CloudSun, Send, RefreshCw, CheckCircle2 } from "lucide-react";
 import { api } from "../api";
 import { temperature } from "../presentation";
@@ -14,22 +14,40 @@ export default function Forecast() {
   const [fbMsg, setFbMsg] = useState(null);
   const [fbLoading, setFbLoading] = useState(false);
 
+  const requestVersion = useRef(0);
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setError(null);
     try {
       const data = await api.getForecast(days);
+      if (version !== requestVersion.current) return;
       setForecast(data);
     } catch (e) {
+      if (version !== requestVersion.current) return;
       setError(e.message);
       setForecast(null);
+    } finally {
+      if (version === requestVersion.current) setLoading(false);
     }
-    setLoading(false);
   }, [days]);
 
   useEffect(() => {
     load();
+    // Changing horizons or leaving this page invalidates pending completions.
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load]);
+
+  const selectDays = (nextDays) => {
+    if (nextDays === days) return;
+    requestVersion.current += 1;
+    setLoading(true);
+    setError(null);
+    setForecast(null);
+    setDays(nextDays);
+  };
 
   const submitFeedback = async (e) => {
     e.preventDefault();
@@ -71,7 +89,7 @@ export default function Forecast() {
             <button
               key={d}
               className={`btn btn-sm ${days === d ? "btn-primary" : "btn-secondary"}`}
-              onClick={() => setDays(d)}
+              onClick={() => selectDays(d)}
             >
               {d} Day{d > 1 ? "s" : ""}
             </button>
